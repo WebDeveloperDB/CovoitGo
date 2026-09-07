@@ -1,0 +1,15 @@
+# Local project preparation documents, kept outside the GitLab repository.
+CAHIER_DES_CHARGES.md
+FIL_ROUGE_GUIDE.md
+USER_STORIES.md
+MAQUETTE_MOBILE.md
+uml/
+maquette-connexion.svg
+maquette-accueil-passager.svg
+maquette-accueil-conducteur.svg
+
+# Local editor and operating-system files.
+.vscode/
+.idea/
+.DS_Store
+*.swp
