@@ -1,0 +1,22 @@
+services:
+  api:
+    build:
+      context: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/covoitgo_dev}
+    depends_on:
+      mongodb:
+        condition: service_started
+    networks:
+      - covoitgo
+
+  mongodb:
+    image: mongo:7.0
+    restart: unless-stopped
+    networks:
+      - covoitgo
+      
+
+networks:
+  covoitgo:

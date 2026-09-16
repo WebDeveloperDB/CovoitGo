@@ -1,0 +1,9 @@
+services:
+  api:
+    env_file:
+      - .env.test
+
+  mongodb:
+    container_name: covoitgo-mongodb-test
+    tmpfs:
+      - /data/db

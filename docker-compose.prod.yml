@@ -1,0 +1,16 @@
+services:
+  api:
+    env_file:
+      - .env.prod
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  mongodb:
+    container_name: covoitgo-mongodb-prod
+    restart: always
+    volumes:
+      - mongo_prod:/data/db
+
+volumes:
+  mongo_prod:

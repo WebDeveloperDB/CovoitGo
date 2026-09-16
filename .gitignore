@@ -3,10 +3,23 @@ CAHIER_DES_CHARGES.md
 FIL_ROUGE_GUIDE.md
 USER_STORIES.md
 MAQUETTE_MOBILE.md
+TACHES_SPRINTS.md
+INSTALLATION_ENVIRONNEMENT.md
+DOCKER_ETAPE3.md
+DOCKER_EXPLICATION_ORALE.md
+BDD_MONGODB.md
+API_CONFLUENCE_ETAPE4.md
+FLUTTER_DART_STRUCTURE.md
+JAVA_SPRING_MAVEN_STRUCTURE.md
 uml/
 maquette-connexion.svg
 maquette-accueil-passager.svg
 maquette-accueil-conducteur.svg
+
+# Environment files: ignore real secrets, but keep template examples
+\.env.*
+!\.env.example*
+!\.env.exemple*
 
 # Local editor and operating-system files.
 .vscode/

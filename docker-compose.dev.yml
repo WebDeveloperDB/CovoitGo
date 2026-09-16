@@ -1,0 +1,16 @@
+services:
+  api:
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.dev
+
+  mongodb:
+    container_name: covoitgo-mongodb-dev
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_dev:/data/db
+
+volumes:
+  mongo_dev:
