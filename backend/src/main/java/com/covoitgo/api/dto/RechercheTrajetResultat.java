@@ -8,25 +8,25 @@ import java.time.Instant;
  * wenn ein Passagier nach einer Fahrt sucht (US1).
  * Es ist das Endergebnis unseres Haversine-Algorithmus, fertig verpackt für das Frontend.
  */
-@Schema(description = "Eine kompatible Fahrt, die bei einer Suche zurückgegeben wird (US1)")
+@Schema(description = "Trajet compatible retourné suite à une recherche de passager avec calcul Haversine (US1)")
 public class RechercheTrajetResultat {
 
-    @Schema(description = "Die eindeutige ID der Fahrt aus der Datenbank", example = "60f719...a3b2")
+    @Schema(description = "Identifiant unique du trajet dans la base MongoDB", example = "60f719...a3b2")
     private String idTrajet;
 
-    @Schema(description = "Der Startpunkt des Fahrers (enthält Koordinaten und Name)")
+    @Schema(description = "Point de départ du conducteur (coordonnées et libellé)")
     private CoordonneesDto depart;
 
-    @Schema(description = "Das Ziel des Fahrers")
+    @Schema(description = "Destination finale du conducteur (coordonnées et libellé)")
     private CoordonneesDto destination;
 
-    @Schema(description = "Geplantes Abfahrtsdatum und -uhrzeit (im ISO-8601 Format)", example = "2026-09-15T08:30:00Z")
+    @Schema(description = "Date et heure de départ prévues (au format ISO-8601 UTC)", example = "2026-09-15T08:30:00Z")
     private Instant heureDepart;
 
-    @Schema(description = "Anzahl der noch freien Plätze im Auto", example = "2")
+    @Schema(description = "Nombre de places encore disponibles dans le véhicule", example = "2")
     private int placesDisponibles;
 
-    @Schema(description = "Der Berechnete Relevanz-Score (basierend auf der Haversine-Distanz)", example = "92.5")
+    @Schema(description = "Score de pertinence calculé à partir de la distance Haversine (sur 100)", example = "92.5")
     private double score;
 
     public RechercheTrajetResultat() {

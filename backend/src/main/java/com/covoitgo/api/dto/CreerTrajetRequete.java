@@ -7,19 +7,19 @@ import java.time.Instant;
  * Dieses DTO definiert, was der Client (Browser/App) an die API senden (als Input) muss, 
  * wenn ein Fahrer eine neue Fahrt erstellen möchte (US2).
  */
-@Schema(description = "Die notwendigen Informationen, um eine neue Fahrt zu erstellen (US2)")
+@Schema(description = "Informations requises pour la publication d'un nouveau trajet par un conducteur (US2)")
 public class CreerTrajetRequete {
 
-    @Schema(description = "Der Startpunkt (wo die Fahrt beginnt)")
+    @Schema(description = "Point de départ du trajet (coordonnées et nom du lieu)")
     private CoordonneesDto depart;
 
-    @Schema(description = "Das Ziel der Fahrt")
+    @Schema(description = "Point d'arrivée du trajet (destination)")
     private CoordonneesDto destination;
 
-    @Schema(description = "Geplantes Abfahrtsdatum und -uhrzeit", example = "2026-09-15T08:30:00Z")
+    @Schema(description = "Date et heure prévues pour le départ (au format ISO-8601 UTC)", example = "2026-09-15T08:30:00Z")
     private Instant heureDepart;
 
-    @Schema(description = "Die Gesamtkapazität (wie viele Personen maximal mitfahren können)", example = "3")
+    @Schema(description = "Capacité totale de transport (nombre de places disponibles pour les passagers)", example = "3")
     private int capacite;
 
     public CreerTrajetRequete() {
