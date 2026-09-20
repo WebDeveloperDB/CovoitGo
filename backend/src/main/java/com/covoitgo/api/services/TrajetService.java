@@ -60,9 +60,7 @@ public class TrajetService {
     }
 
     /**
-     * =========================================================================
      * US1 - HAVERSINE MATCHING (Berechnung der GPS-Distanz und Fahrten-Suche)
-     * =========================================================================
      * 
      * Diese Methode sucht in der Datenbank nach aktiven Fahrten und prüft mit der
      * Haversine-Formel, ob Start- und Zielkoordinaten des Fahrers nah genug an den
@@ -78,25 +76,10 @@ public class TrajetService {
 
         // 1. Validierung der GPS-Koordinaten (Breitengrad -90 bis +90, Längengrad -180
         // bis +180)
-        // warum 90 grad und nicht 180?
-        // Der Breitengrad (latitude) verläuft von -90 Grad (Südpol) bis +90 Grad
-        // (Nordpol).
-        // -90° liegt am Südpol, +90° liegt am Nordpol.
-
-        // Der Längengrad (longitude) verläuft von -180 Grad westlich bis +180 Grad
-        // östlich.
-        // 0° ist die Hauptmeridianlinie.
-        // Warum nicht 180°? Weil der Längengrad bei -180° beginnt und bei +180° endet
-        // (der internationale Datumslinie). Dazwischen liegt die ganze Erde. Wenn du
-        // +180° als Maximum angibst, hast du im Grunde das gleiche Problem wie bei der
-        // Breitengrad, aber es ist anders definiert. In der Standard-GPS-Validierung
-        // sind die Grenzen so festgelegt, wie du sie angegeben hast: Latitude: -90 bis
-        // 90, Longitude: -180 bis 180.
         if (latitudeDepart < -90.0 || latitudeDepart > 90.0 || latitudeArrivee < -90.0 || latitudeArrivee > 90.0
                 || longitudeDepart < -180.0 || longitudeDepart > 180.0 || longitudeArrivee < -180.0
                 || longitudeArrivee > 180.0) {
             // Wenn die Koordinaten unmöglich sind, werfen wir einen HTTP 422 Fehler
-            // (Unprocessable Content)
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Coordonnées GPS invalides.");
         }
 
@@ -107,6 +90,7 @@ public class TrajetService {
         }
 
         // 3. Alle aktiven Fahrten aus der MongoDB-Datenbank laden
+
         List<Trajet> trajetsActifs = trajetRepository.findByStatut("ACTIF");
 
         // Liste vorbereiten, in der wir die passenden Ergebnisse sammeln
@@ -128,6 +112,7 @@ public class TrajetService {
             }
 
             // 5. HAVERSINE-KALKULATION: Distanz zwischen Passagier-Start und Fahrer-Start
+            // (die Funktion calculerDistanceHaversine ist weiter unten in dieser Datei)
             double distanceDepart = calculerDistanceHaversine(
                     latitudeDepart,
                     longitudeDepart,
@@ -187,9 +172,7 @@ public class TrajetService {
     }
 
     /**
-     * =========================================================================
-     * MATHEMATISCHE HAVERSINE-FORMEL
-     * =========================================================================
+     * MATHEMATISCHE HAVERSINE-FORMELs
      * 
      * Berechnet die Luftlinien-Distanz zwischen zwei GPS-Punkten auf einer Kugel
      * (Erde).
@@ -222,9 +205,7 @@ public class TrajetService {
     }
 
     /**
-     * =========================================================================
      * US2 - NEUE FAHRT ERSTELLEN (Speichern in MongoDB)
-     * =========================================================================
      */
     public Trajet creerTrajet(CreerTrajetRequete requete) {
 
@@ -274,9 +255,7 @@ public class TrajetService {
     }
 
     /**
-     * =========================================================================
      * US3 - MITFAHRANFRAGE BEARBEITEN (Akzeptieren / Ablehnen)
-     * =========================================================================
      */
     public void traiterDemande(String trajetId, String demandeId, TraiterDemandeRequete requete) {
 

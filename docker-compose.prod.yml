@@ -4,11 +4,13 @@ services:
       - .env.prod
     restart: always
     ports:
-      - "127.0.0.1:8080:8080"
+      - "${API_PORT:-80}:8080"
 
   mongodb:
     container_name: covoitgo-mongodb-prod
     restart: always
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo_prod:/data/db
 
