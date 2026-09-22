@@ -16,6 +16,27 @@ In Java (wie in vielen objektorientierten Sprachen) ist alles ein **Objekt**. Ei
 
 ---
 
+## 1b. Entity vs. DTO (Warum gibt es beides?)
+
+Das ist eine der wichtigsten Fragen in der Softwareentwicklung! Warum erstellen wir eine Entity (`Trajet`), wenn wir im DTO (`RechercheTrajetResultat`) fast dasselbe haben? Warum nicht einfach immer die Entity nehmen?
+
+**1. Was ist die Entity (`Trajet.java`)?**
+* Die Entity ist der **Spiegel der MongoDB-Datenbank**. Was in der Datenbank steht, steht 1:1 in der Entity.
+* Sie enthält interne Daten (z.B. geheime Fahrer-IDs, komplette Passagierlisten etc.), die nicht jeder sehen darf.
+
+**2. Was ist das DTO (`RechercheTrajetResultat.java`)?**
+* DTO steht für **Data Transfer Object** (Daten-Transport-Paket).
+* Es ist der **Lieferkarton für das Frontend** (Handy-App oder Website). Es enthält **nur das, was der Benutzer sehen darf**.
+
+**Der entscheidende Unterschied:**
+In MongoDB ist eine Fahrt abgespeichert. MongoDB weiß aber **nicht**, wie weit der Startpunkt der Fahrt von der Haustür des *suchenden* Passagiers entfernt ist, oder welchen *Score* diese Fahrt für diesen spezifischen Passagier hat! 
+* Diese Werte (`distanceDepartKm`, `scoreMatch`) existieren in der Datenbank gar nicht. In der **Entity** (`Trajet`) können sie also nicht stehen.
+* Im **DTO** (`RechercheTrajetResultat`) haben wir aber extra Fächer für diese berechneten Werte eingebaut. 
+
+Wenn wir also `resultat.setIdTrajet(trajet.getId())` machen, dann **lesen** wir den Wert aus der Datenbank-Kiste (`trajet`) und **schreiben** ihn in die Liefer-Kiste für den Kunden (`resultat`).
+
+---
+
 ## 2. Entschlüsselung von TrajetService.java
 
 ### Dependency Injection / Abhängigkeitsinjektion (Der Konstruktor)
@@ -70,8 +91,28 @@ Innerhalb dieser Schleife machen wir 3 Dinge:
   ```
   > "Wenn die Start-Entfernung kleiner oder gleich 10 km ist (unsere Konstante `SEUIL_MAX_DISTANCE_KM`), UND die Ziel-Entfernung auch <= 10 km ist, UND die Uhrzeit passt, UND genug Plätze frei sind... dann ist diese Fahrt kompatibel!"
 
-* **Score berechnen und zur Liste hinzufügen**:
-  Wenn der `if`-Test bestanden ist, berechnen wir einen Score (je näher, desto höher der Score). Dann erstellen wir ein "DTO" (ein leichtes Datenübertragungs-Objekt) namens `RechercheTrajetResultat`, packen die Infos dort hinein und machen `resultats.add(le_resultat)`, um es unserer Gewinnerliste hinzuzufügen.
+* **Objekte erstellen und Daten übergeben (Das DTO "RechercheTrajetResultat")**:
+  Wenn der `if`-Test bestanden ist, berechnen wir einen Score. Danach kommt dieser Code, der oft für Anfänger verwirrend ist:
+  ```java
+  RechercheTrajetResultat resultat = new RechercheTrajetResultat();
+  resultat.setIdTrajet(trajet.getId());
+  resultat.setHeureDepart(trajet.getHeureDepart());
+  resultat.setPlacesDisponibles(trajet.getPlacesDisponibles());
+  resultat.setScore(Math.round(score * 10.0) / 10.0);
+  ```
+  **Was genau passiert hier? (Langsam und detailliert)**
+  - **Woher kommt `RechercheTrajetResultat`?** Das ist eine Klasse (ein Bauplan), die wir in einem anderen Ordner (`models` oder `dto`) erstellt haben. Sie ist extra dafür da, genau die Informationen zu halten, die das Frontend am Ende sehen will.
+  - **Was macht `new`?** Mit `new RechercheTrajetResultat()` sagen wir zu Java: *"Baue mir jetzt eine frische, leere Kiste basierend auf diesem Bauplan"*. Wir geben dieser Kiste den Namen `resultat`.
+  - **Was sind die Eigenschaften?** Diese leere Kiste hat Fächer (Eigenschaften), wie z.B. eine ID, eine Uhrzeit, freie Plätze und einen Score. Am Anfang sind diese Fächer leer.
+  - **Wie füllen wir die Fächer? (Die Syntax)**
+    - `resultat.setIdTrajet(...)` bedeutet: *"Nimm die Kiste 'resultat' und stecke etwas in das Fach 'IdTrajet'"*.
+    - **Aber was stecken wir hinein?** Das, was in den Klammern steht: `trajet.getId()`.
+    - `trajet` ist die Fahrt aus unserer Datenbank (die wir gerade in der `for-each`-Schleife prüfen). `getId()` ist der Befehl, der sagt: *"Lies die ID von dieser Fahrt aus"*.
+    - Also passiert zusammengefasst Folgendes: Java liest die ID der Datenbank-Fahrt aus und kopiert sie direkt in unsere neue `resultat`-Kiste für das Frontend. Genau das Gleiche passiert mit der Uhrzeit (`getHeureDepart`) und den Plätzen (`getPlacesDisponibles`).
+  - **Warum runden wir den Score?** `Math.round(score * 10.0) / 10.0` ist nur ein kleiner Mathe-Trick, damit der Score nur eine Nachkommastelle hat (z.B. 95.5 statt 95.49823). Danach wird dieser Wert mit `setScore(...)` in das Score-Fach unserer `resultat`-Kiste gelegt.
+
+  **Warum machen wir das überhaupt? Warum nicht einfach das Original `trajet` senden?**
+  Weil das Original `trajet` aus der Datenbank viel zu viele Infos enthält (z.B. wer das erstellt hat, geheime IDs, etc.), die das Frontend gar nicht braucht. Außerdem hat das Original-Objekt kein Fach für den "Score" (der Score wird ja nur für diesen einen Passagier live berechnet!). Deshalb erstellen wir ein maßgeschneidertes Paket (`RechercheTrajetResultat`), packen nur die nötigen Infos plus den Score hinein und machen am Ende `resultats.add(resultat)`, um diese fertige Kiste auf den Stapel der Gewinner zu legen.
 
 **4. Sortieren und Zurückgeben:**
 ```java
@@ -92,6 +133,43 @@ private double calculerDistanceHaversine(double lat1, double lon1, double lat2, 
 
 **Was macht sie?**
 Sie nutzt die eingebaute mathematische Bibliothek von Java (`Math.toRadians`, `Math.sin`, `Math.cos`, usw.), um die klassische Haversine-Formel anzuwenden. Sie gibt das Ergebnis der Gleichung `RAYON_TERRE_KM * c` zurück (was uns die Entfernung in Kilometern liefert).
+
+---
+
+## 2b. Wie funktionieren Parameter bei Methoden? (Der Datenfluss)
+
+Wenn eine Methode ausgeführt wird, fragt man sich oft: *Woher kommen die Werte in den Klammern eigentlich?*
+
+Stell dir eine Methode wie einen **Kaffeeautomaten** vor: Der Parameter in den Klammern `( ... )` ist der Einwurfschlitz.
+
+Hier ist der Ablauf von Swagger bis zur Haversine-Formel:
+
+**Schritt 1: Der Controller empfängt das JSON aus dem Browser (Swagger)**
+```java
+@PostMapping("/rechercher")
+public ResponseEntity<List<RechercheTrajetResultat>> rechercher(
+       @RequestBody RechercheTrajetRequete requete) {  
+    return ResponseEntity.ok(trajetService.rechercherTrajets(requete));
+}
+```
+Der Benutzer tippt in Swagger etwas ein. Spring Boot liest das JSON und packt es automatisch in eine Variable namens `requete`. Dann ruft er den Service auf und wirft diese `requete` hinein.
+
+**Schritt 2: Der Service nimmt die `requete` entgegen**
+```java
+public List<RechercheTrajetResultat> rechercherTrajets(RechercheTrajetRequete critere) {
+```
+Im Controller hieß es `requete`, hier im Service heißt es `critere`. Der Name ist egal! Der **Inhalt** wurde übergeben. Jetzt kann der Service die Werte auspacken, z.B. mit `critere.getDepart().getLatitude()`.
+
+**Schritt 3: Der Service ruft die Rechenmethode auf (Haversine)**
+```java
+double distDepart = calculerDistanceHaversine(
+    passagerLatDepart,                  // 1. Wert (z.B. 48.08)
+    critere.getDepart().getLongitude(), // 2. Wert (z.B. 7.36)
+    trajet.getDepart().getLatitude(),   // 3. Wert (z.B. 48.05)
+    trajet.getDepart().getLongitude()   // 4. Wert (z.B. 7.34)
+);
+```
+Die Methode `calculerDistanceHaversine` empfängt diese vier Zahlen exakt in dieser Reihenfolge und speichert sie in ihren eigenen Variablen (`lat1`, `lon1`, `lat2`, `lon2`). Sie rechnet damit und schickt das Ergebnis (Kilometer) mit `return` zurück.
 
 ---
 

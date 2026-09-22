@@ -15,6 +15,7 @@ uml/
 maquette-connexion.svg
 maquette-accueil-passager.svg
 maquette-accueil-conducteur.svg
+SCHEMA_BDD_NOSQL.md
 
 # Environment files: ignore real secrets, but keep template examples
 \.env.*
