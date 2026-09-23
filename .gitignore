@@ -17,7 +17,7 @@ maquette-accueil-passager.svg
 maquette-accueil-conducteur.svg
 SCHEMA_BDD_NOSQL.md
 EXPLICATION_CODE_JAVA.md
-
+JIRA_ETAPE5.md
 # Environment files: ignore real secrets, but keep template examples
 \.env.*
 !\.env.example*
