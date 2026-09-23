@@ -16,6 +16,7 @@ maquette-connexion.svg
 maquette-accueil-passager.svg
 maquette-accueil-conducteur.svg
 SCHEMA_BDD_NOSQL.md
+EXPLICATION_CODE_JAVA.md
 
 # Environment files: ignore real secrets, but keep template examples
 \.env.*
