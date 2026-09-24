@@ -1,5 +1,6 @@
 // Importiert die grundlegenden Flutter-Bausteine (Widgets, Farben, Material Design).
 import 'package:flutter/material.dart';
+import 'screens/passager_accueil_screen.dart';
 
 // Die "main" Funktion ist der Startpunkt der gesamten App.
 // Wenn die App auf dem Handy startet, sucht das System genau nach dieser "main" Funktion.
@@ -35,7 +36,7 @@ class CovoitGoApp extends StatelessWidget {
       
       // "home" definiert den allerersten Bildschirm (Screen), 
       // der angezeigt wird, direkt wenn die App startet.
-      home: const AccueilScreen(),
+      home: const PassagerAccueilScreen(),
     );
   }
 }
