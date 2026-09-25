@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 class PassagerAccueilScreen extends StatefulWidget {
   const PassagerAccueilScreen({super.key});
@@ -13,8 +14,10 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
   final String userName = "Passager";
   
   // Zeigt an, ob wir bereits eine Suche durchgeführt haben.
-  // Ist momentan fest auf 'true', damit wir das Ergebnis-Design sehen können.
-  final bool hasSearched = true; 
+  bool hasSearched = false; 
+
+  // Hier speichern wir die Ergebnisse aus dem Backend!
+  List<dynamic> resultatsApi = []; 
 
   // Variablen zum Speichern des gewählten Datums und der Uhrzeit
   DateTime? selectedDate;
@@ -81,20 +84,26 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                   ),
                 ),
                 Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    itemCount: 5, // Wir generieren 5 Dummy-Ergebnisse
-                    itemBuilder: (context, index) {
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: ListTile(
-                          title: const Text("Mulhouse → Colmar"),
-                          subtitle: Text("08:${20 + (index * 5)} • 2 places • Score ${80 - index}"),
-                          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        ),
-                      );
-                    },
-                  ),
+                  child: resultatsApi.isEmpty 
+                    ? const Center(child: Text("Keine weiteren Fahrten gefunden."))
+                    : ListView.builder(
+                        controller: scrollController,
+                        itemCount: resultatsApi.length,
+                        itemBuilder: (context, index) {
+                          final trajet = resultatsApi[index];
+                          // Da wir die JSON Struktur noch nicht genau kennen,
+                          // nutzen wir vorerst Dummy-Texte für die Darstellung, 
+                          // aber wir generieren so viele Karten wie Ergebnisse!
+                          return Card(
+                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: ListTile(
+                              title: const Text("Mulhouse → Colmar (API)"),
+                              subtitle: Text("Score: ${trajet['scoreCompatibilite'] ?? 'N/A'}%"),
+                              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                            ),
+                          );
+                        },
+                      ),
                 ),
               ],
             );
@@ -255,11 +264,25 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: btnColor,
-                          foregroundColor: Colors.black87, // Dunkler Text für besseren Kontrast
+                          foregroundColor: Colors.black87,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        onPressed: () {
-                          // Hier schreiben wir später den Code, um die Suche ans Backend (Spring Boot) zu senden
+                        onPressed: () async {
+                          // 1. Koordinaten Mulhouse -> Colmar für die Demo
+                          // In echt würden wir die Adresse aus dem TextField in Koordinaten umwandeln.
+                          final result = await ApiService.rechercherTrajets(
+                            latDepart: 47.7508, // Mulhouse
+                            lonDepart: 7.3359,
+                            latArrivee: 48.0794, // Colmar
+                            lonArrivee: 7.3585,
+                            heureDepart: "2026-09-15T08:30:00Z", // Datum im ISO-Format
+                            places: 1,
+                          );
+
+                          setState(() {
+                            resultatsApi = result;
+                            hasSearched = true;
+                          });
                         },
                         child: const Text('Rechercher', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
