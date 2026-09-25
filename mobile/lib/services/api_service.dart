@@ -70,4 +70,65 @@ class ApiService {
       return false;
     }
   }
+
+  // ==========================================
+  // US3: Gérer une demande & Envoi d'une demande
+  // ==========================================
+
+  // Passager : Envoyer une demande de covoiturage
+  static Future<bool> envoyerDemande(String trajetId, Map<String, dynamic> demandeData, String token) async {
+    final url = Uri.parse('$baseUrl/trajets/$trajetId/demandes');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode(demandeData),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        print('Demande envoyée avec succès !');
+        return true;
+      } else {
+        print('Erreur lors de l\'envoi de la demande (Code ${response.statusCode})');
+        return false;
+      }
+    } catch (e) {
+      print('Erreur de connexion : $e');
+      return false;
+    }
+  }
+
+  // Conducteur : Accepter ou refuser une demande
+  static Future<bool> gererDemande(String trajetId, String demandeId, String statut, String motif, String token) async {
+    final url = Uri.parse('$baseUrl/trajets/$trajetId/demandes/$demandeId');
+
+    try {
+      final response = await http.patch(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'statut': statut,
+          'motif': motif,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        print('Demande gérée avec succès ($statut) !');
+        return true;
+      } else {
+        print('Erreur lors de la gestion de la demande (Code ${response.statusCode})');
+        return false;
+      }
+    } catch (e) {
+      print('Erreur de connexion : $e');
+      return false;
+    }
+  }
 }
