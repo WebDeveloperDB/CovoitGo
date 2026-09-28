@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'passager_reservation_screen.dart';
 
 class PassagerAccueilScreen extends StatefulWidget {
   const PassagerAccueilScreen({super.key});
@@ -23,9 +24,11 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
   
-  // Controller für die Textfelder, um den Text per Code (nach Auswahl im Kalender) ändern zu können
   final TextEditingController _dateController = TextEditingController();
   final TextEditingController _timeController = TextEditingController();
+  final TextEditingController _departController = TextEditingController();
+  final TextEditingController _destinationController = TextEditingController();
+  final TextEditingController _placesController = TextEditingController();
 
   // Methode, um den Kalender zu öffnen (Date Picker)
   Future<void> _selectDate(BuildContext context) async {
@@ -85,20 +88,26 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                 ),
                 Expanded(
                   child: resultatsApi.isEmpty 
-                    ? const Center(child: Text("Keine weiteren Fahrten gefunden."))
+                    ? const Center(child: Text("Aucun trajet trouvé"))
                     : ListView.builder(
                         controller: scrollController,
                         itemCount: resultatsApi.length,
                         itemBuilder: (context, index) {
                           final trajet = resultatsApi[index];
-                          // Da wir die JSON Struktur noch nicht genau kennen,
-                          // nutzen wir vorerst Dummy-Texte für die Darstellung, 
-                          // aber wir generieren so viele Karten wie Ergebnisse!
+                          final departLabel = trajet['depart']?['label'] ?? 'Inconnu';
+                          final destinationLabel = trajet['destination']?['label'] ?? 'Inconnu';
+                          final score = trajet['score'] ?? 'N/A';
+                          
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             child: ListTile(
-                              title: const Text("Mulhouse → Colmar (API)"),
-                              subtitle: Text("Score: ${trajet['scoreCompatibilite'] ?? 'N/A'}%"),
+                              onTap: () {
+                                Navigator.push(context, MaterialPageRoute(
+                                  builder: (context) => PassagerReservationScreen(trajet: trajet),
+                                ));
+                              },
+                              title: Text("$departLabel → $destinationLabel"),
+                              subtitle: Text("Score: $score%"),
                               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                             ),
                           );
@@ -114,14 +123,14 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
   }
 
   // Hilfsmethode, um normale Textfelder (Départ, Destination, Places) zu bauen
-  Widget _buildTextField(String label, String hint, {TextInputType keyboardType = TextInputType.text}) {
+  Widget _buildTextField(String label, String hint, {TextInputType keyboardType = TextInputType.text, TextEditingController? controller}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(height: 6),
         TextField(
-          // Hier können wir nun bestimmen, ob die Tastatur nur Zahlen oder auch Buchstaben anzeigt
+          controller: controller,
           keyboardType: keyboardType, 
           decoration: InputDecoration(
             hintText: hint,
@@ -198,11 +207,11 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Startort
-                    _buildTextField("Départ", "Mulhouse"),
+                    _buildTextField("Départ", "Ex: Mulhouse", controller: _departController),
                     const SizedBox(height: 16),
                     
                     // Zielort
-                    _buildTextField("Destination", "Colmar"),
+                    _buildTextField("Destination", "Ex: Colmar", controller: _destinationController),
                     const SizedBox(height: 16),
                     
                     // Datum und Uhrzeit nebeneinander
@@ -254,7 +263,7 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                     const SizedBox(height: 16),
                     
                     // Zusatzfeld für "Places", zwingt die Handy-Tastatur auf "Nur Zahlen"
-                    _buildTextField("Places", "1", keyboardType: TextInputType.number),
+                    _buildTextField("Places", "1", keyboardType: TextInputType.number, controller: _placesController),
                     const SizedBox(height: 24),
 
                     // Rechercher Button in Orange
@@ -268,15 +277,30 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         onPressed: () async {
-                          // 1. Koordinaten Mulhouse -> Colmar für die Demo
-                          // In echt würden wir die Adresse aus dem TextField in Koordinaten umwandeln.
+                          // Validation
+                          if (_departController.text.isEmpty || _destinationController.text.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez remplir le départ et la destination.'), backgroundColor: Colors.red));
+                            return;
+                          }
+                          if (_dateController.text.isEmpty || _timeController.text.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez sélectionner la date et l\'heure.'), backgroundColor: Colors.red));
+                            return;
+                          }
+                          final places = int.tryParse(_placesController.text) ?? 0;
+                          if (places <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Le nombre de places doit être supérieur à zéro.'), backgroundColor: Colors.red));
+                            return;
+                          }
+
+                          // 1. Koordinaten Demo (In echt würden wir Geocoding verwenden)
+                          // Wir tun so, als ob wir Mulhouse -> Colmar anfragen
                           final result = await ApiService.rechercherTrajets(
-                            latDepart: 47.7508, // Mulhouse
+                            latDepart: 47.7508, 
                             lonDepart: 7.3359,
-                            latArrivee: 48.0794, // Colmar
+                            latArrivee: 48.0794, 
                             lonArrivee: 7.3585,
-                            heureDepart: "2026-09-15T08:30:00Z", // Datum im ISO-Format
-                            places: 1,
+                            heureDepart: "2026-09-15T08:30:00Z", // Demo-Datum (ISO)
+                            places: places,
                           );
 
                           setState(() {
@@ -296,57 +320,77 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                     // 3. ERGEBNIS-ANZEIGE (Meilleur Résultat)
                     // ==========================================
                     if (hasSearched) ...[
-                      const Text(
-                        "Meilleur résultat",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // Kasten für das beste Ergebnis (wie gewünscht: wieder mit schönem grünen Design)
-                      Card(
-                        color: Colors.green.shade50, // Sehr heller grüner Hintergrund
-                        elevation: 2, // Leichter Schatten
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(color: Colors.green, width: 1.5), // Grüner Rahmen
+                      if (resultatsApi.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Center(child: Text("Aucun trajet trouvé pour ces critères.", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
+                        )
+                      else ...[
+                        const Text(
+                          "Meilleur résultat",
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Score und Stern-Icon ganz oben rechts
-                              const Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text("Mulhouse → Colmar", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                  Row(
-                                    children: [
-                                      Text("Score 92", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                                      Icon(Icons.star, color: Colors.orange, size: 18),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              // Infos zur Fahrt (Zeit und Plätze) mit kleinen Icons daneben
-                              Row(
-                                children: [
-                                  const Icon(Icons.access_time, size: 18, color: Colors.black54),
-                                  const SizedBox(width: 4),
-                                  Text("08:10", style: TextStyle(color: Colors.grey.shade700, fontSize: 14)),
-                                  const SizedBox(width: 16),
-                                  const Icon(Icons.person, size: 18, color: Colors.black54),
-                                  const SizedBox(width: 4),
-                                  Text("2 places", style: TextStyle(color: Colors.grey.shade700, fontSize: 14)),
-                                ],
-                              ),
+                        const SizedBox(height: 12),
+                        
+                        // Kasten für das beste Ergebnis
+                        Card(
+                          color: Colors.green.shade50, // Sehr heller grüner Hintergrund
+                          elevation: 2, // Leichter Schatten
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: const BorderSide(color: Colors.green, width: 1.5), // Grüner Rahmen
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Score und Stern-Icon ganz oben rechts
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        "${resultatsApi.first['depart']?['label'] ?? 'Inconnu'} → ${resultatsApi.first['destination']?['label'] ?? 'Inconnu'}", 
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        Text("Score ${resultatsApi.first['score'] ?? 'N/A'}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                                        const Icon(Icons.star, color: Colors.orange, size: 18),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                // Infos zur Fahrt (Zeit und Plätze) mit kleinen Icons daneben
+                                Row(
+                                  children: [
+                                    const Icon(Icons.access_time, size: 18, color: Colors.black54),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      (resultatsApi.first['heureDepart'] ?? '08:10').toString().contains('T') 
+                                        ? (resultatsApi.first['heureDepart'] as String).split('T')[1].substring(0, 5) 
+                                        : (resultatsApi.first['heureDepart'] ?? '08:10'), 
+                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 14)
+                                    ),
+                                    const SizedBox(width: 16),
+                                    const Icon(Icons.person, size: 18, color: Colors.black54),
+                                    const SizedBox(width: 4),
+                                    Text("${resultatsApi.first['placesDisponibles'] ?? '?'} places", style: TextStyle(color: Colors.grey.shade700, fontSize: 14)),
+                                  ],
+                                ),
                               const SizedBox(height: 12),
                               // Der Button/Link "Demander une place"
                               GestureDetector(
                                 onTap: () {
-                                  // HIER WIRD SPÄTER DIE SEITE GEWECHSELT!
-                                  // Code kommt später: Navigator.push(context, MaterialPageRoute(builder: (context) => DemandeTrajetScreen()));
+                                  Navigator.push(context, MaterialPageRoute(
+                                    builder: (context) => PassagerReservationScreen(
+                                      trajet: resultatsApi.isNotEmpty ? resultatsApi.first : {}
+                                    ),
+                                  ));
                                 },
                                 child: const Row(
                                   children: [
@@ -360,21 +404,23 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                         ),
                       ),
                       
+                      ],
                       const SizedBox(height: 16),
                       
                       // Button für die restlichen Ergebnisse
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.grey.shade400),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      if (resultatsApi.isNotEmpty)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.grey.shade400),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () => _afficherTousLesResultats(context),
+                            child: const Text("Voir les autres propositions", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
                           ),
-                          onPressed: () => _afficherTousLesResultats(context),
-                          child: const Text("Voir les autres propositions", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
-                        ),
-                      )
+                        )
                     ]
                   ],
                 ),

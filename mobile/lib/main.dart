@@ -1,6 +1,7 @@
 // Importiert die grundlegenden Flutter-Bausteine (Widgets, Farben, Material Design).
 import 'package:flutter/material.dart';
 import 'screens/passager_accueil_screen.dart';
+import 'screens/conducteur_accueil_screen.dart';
 
 // Die "main" Funktion ist der Startpunkt der gesamten App.
 // Wenn die App auf dem Handy startet, sucht das System genau nach dieser "main" Funktion.
@@ -28,20 +29,16 @@ class CovoitGoApp extends StatelessWidget {
       
       // Das Theme (Design) unserer App. Hier definieren wir Farben und Schriftarten.
       theme: ThemeData(
-        // Wir setzen die Hauptfarbe der App auf ein schönes Blau (passend für CovoitGo).
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
-        // Wir nutzen das moderne Material 3 Design.
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1E463D)),
         useMaterial3: true,
       ),
-      
-      // Wir schalten kurz zurück auf Passager, um die API zu testen
-      home: const PassagerAccueilScreen(),
+      home: const AccueilScreen(), // Startseite ist jetzt die Rollenauswahl
     );
   }
 }
 
-// Dies ist ein einfacher Platzhalter-Bildschirm für den Anfang.
-// Später werden wir diesen Code in den Ordner "screens" auslagern.
+// Temporärer Bildschirm, um beim Testen zwischen Passagier und Fahrer zu wechseln,
+// solange wir noch keinen echten Login haben.
 class AccueilScreen extends StatelessWidget {
   const AccueilScreen({super.key});
 
@@ -50,21 +47,61 @@ class AccueilScreen extends StatelessWidget {
     // "Scaffold" ist wie eine weiße Leinwand für eine Seite.
     // Es bietet automatisch Platz für eine Kopfzeile (AppBar) und den Inhalt (Body).
     return Scaffold(
-      // Die obere Kopfzeile (App Bar).
+      backgroundColor: const Color(0xFFF4F2EC),
       appBar: AppBar(
-        // Die Hintergrundfarbe der Leiste holen wir uns aus unserem Theme (von oben).
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Der Text, der oben in der Leiste steht.
-        title: const Text('CovoitGo - Accueil'),
+        backgroundColor: const Color(0xFF1E463D),
+        title: const Text('Mode Test', style: TextStyle(color: Colors.white)),
       ),
-      
-      // Der Hauptbereich der Seite (Body).
-      body: const Center(
-        // Center zentriert alles, was sich darin (in "child") befindet.
-        child: Text(
-          'Willkommen bei CovoitGo',
-          textAlign: TextAlign.center, // Text wird zentriert geschrieben
-          style: TextStyle(fontSize: 18), // Wir machen die Schrift etwas größer
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Qui êtes-vous ?',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E463D)),
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.person, color: Colors.black87),
+                  label: const Text('Je suis Passager', style: TextStyle(fontSize: 18, color: Colors.black87)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE29E4A),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const PassagerAccueilScreen()),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.directions_car, color: Colors.black87),
+                  label: const Text('Je suis Conducteur', style: TextStyle(fontSize: 18, color: Colors.black87)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE29E4A),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ConducteurAccueilScreen()),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

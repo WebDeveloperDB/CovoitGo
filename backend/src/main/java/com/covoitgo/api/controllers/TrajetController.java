@@ -104,6 +104,24 @@ public class TrajetController {
         }
 
         /**
+         * US3 - EINE MITFAHRANFRAGE STELLEN (PASSAGIER)
+         */
+        @Operation(summary = "Envoyer une demande de réservation", description = "Permet à un passager de demander une place pour un trajet actif.")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "201", description = "Demande envoyée avec succès"),
+                        @ApiResponse(responseCode = "404", description = "Trajet introuvable", content = @Content),
+                        @ApiResponse(responseCode = "409", description = "Pas assez de places disponibles", content = @Content)
+        })
+        @PostMapping("/{trajetId}/demandes") // HTTP POST: /api/trajets/{trajetId}/demandes
+        public ResponseEntity<Void> creerDemande(
+                        @Parameter(description = "Identifiant unique du trajet", example = "60f719...a3b2") @PathVariable String trajetId,
+                        @RequestBody com.covoitgo.api.dto.CreerDemandeRequete requete) {
+
+                trajetService.creerDemande(trajetId, requete);
+                return ResponseEntity.status(HttpStatus.CREATED).build();
+        }
+
+        /**
          * US3 - EINE MITFAHRANFRAGE BEARBEITEN (FAHRER)
          */
         @Operation(summary = "Traiter une demande de réservation", description = "Permet au conducteur d'accepter (décrémente les places disponibles) ou de refuser une demande de réservation pour son trajet.")

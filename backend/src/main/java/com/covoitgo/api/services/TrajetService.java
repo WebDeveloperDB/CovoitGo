@@ -255,6 +255,32 @@ public class TrajetService {
     }
 
     /**
+     * US3 - NOUVELLE DEMANDE DE COVOITURAGE (Passager)
+     */
+    public DemandeTrajet creerDemande(String trajetId, com.covoitgo.api.dto.CreerDemandeRequete requete) {
+        // 1. Fahrt aus MongoDB suchen
+        Trajet trajet = trajetRepository.findById(trajetId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Trajet non trouvé"));
+
+        // 2. Prüfen, ob noch genügend freie Plätze vorhanden sind
+        if (trajet.getPlacesDisponibles() < requete.getPlacesDemandees()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Pas assez de places disponibles dans ce trajet.");
+        }
+
+        // 3. Neue Anfrage (Demande) erstellen
+        DemandeTrajet demande = new DemandeTrajet();
+        demande.setIdTrajet(trajetId);
+        demande.setIdPassager(requete.getIdPassager());
+        demande.setPlacesDemandees(requete.getPlacesDemandees());
+        demande.setStatut("PENDING"); // Standardstatus bei neuer Anfrage
+        demande.setCreeLe(Instant.now());
+        demande.setMisAJourLe(Instant.now());
+
+        // 4. In MongoDB speichern
+        return demandeTrajetRepository.save(demande);
+    }
+
+    /**
      * US3 - MITFAHRANFRAGE BEARBEITEN (Akzeptieren / Ablehnen)
      */
     public void traiterDemande(String trajetId, String demandeId, TraiterDemandeRequete requete) {
