@@ -143,4 +143,17 @@ public class TrajetController {
                 // HTTP 200 OK zurückgeben
                 return ResponseEntity.ok().build();
         }
+
+        @Operation(summary = "Récupérer les trajets actifs du conducteur")
+        @GetMapping("/mes-trajets")
+        public ResponseEntity<List<com.covoitgo.api.models.Trajet>> getMesTrajetsActifs() {
+                return ResponseEntity.ok(trajetService.getMesTrajetsActifs());
+        }
+
+        @Operation(summary = "Récupérer les demandes en attente pour un trajet")
+        @GetMapping("/{trajetId}/demandes")
+        public ResponseEntity<List<com.covoitgo.api.models.DemandeTrajet>> getDemandesPourTrajet(
+                        @PathVariable String trajetId) {
+                return ResponseEntity.ok(trajetService.getDemandesPourTrajet(trajetId));
+        }
 }

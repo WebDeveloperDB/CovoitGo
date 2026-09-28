@@ -3,6 +3,7 @@ package com.covoitgo.api.repositories;
 import com.covoitgo.api.models.DemandeTrajet;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
+import java.util.List;
 
 /**
  * REPOSITORY für die Mitfahranfragen (Demandes).
@@ -12,7 +13,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface DemandeTrajetRepository extends MongoRepository<DemandeTrajet, String> {
     
-    // Wir brauchen hier vorerst keine eigenen Suchmethoden.
-    // Methoden wie save(), findById(), findAll() sind automatisch eingebaut!
+    // Find all requests for a specific trip
+    List<DemandeTrajet> findByIdTrajet(String idTrajet);
+    
+    // Find requests for a specific trip by their status
+    List<DemandeTrajet> findByIdTrajetAndStatut(String idTrajet, String statut);
 
 }

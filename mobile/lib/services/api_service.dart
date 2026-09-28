@@ -131,4 +131,36 @@ class ApiService {
       return false;
     }
   }
+
+  // ==========================================
+  // US3 (Conducteur): Fetch active trips and pending requests
+  // ==========================================
+
+  // Fetch active trips (Mock for driver)
+  static Future<List<dynamic>> getMesTrajetsActifs() async {
+    final url = Uri.parse('$baseUrl/trajets/mes-trajets');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print('Erreur lors de la récupération des trajets: $e');
+    }
+    return [];
+  }
+
+  // Fetch pending requests for a specific trip
+  static Future<List<dynamic>> getDemandesPourTrajet(String trajetId) async {
+    final url = Uri.parse('$baseUrl/trajets/$trajetId/demandes');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print('Erreur lors de la récupération des demandes: $e');
+    }
+    return [];
+  }
 }

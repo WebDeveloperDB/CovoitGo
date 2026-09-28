@@ -14,9 +14,10 @@ services:
   mongodb:
     image: mongo:7.0
     restart: unless-stopped
+    ports:
+      - "27017:27017"
     networks:
       - covoitgo
-      
 
 networks:
   covoitgo:

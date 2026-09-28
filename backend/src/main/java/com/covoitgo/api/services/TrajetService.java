@@ -336,4 +336,18 @@ public class TrajetService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Statut invalide : doit être ACCEPTE ou REFUSE.");
         }
     }
+
+    /**
+     * US2 - MES TRAJETS (Für den MVP geben wir einfach alle aktiven Fahrten zurück)
+     */
+    public List<Trajet> getMesTrajetsActifs() {
+        return trajetRepository.findByStatut("ACTIF");
+    }
+
+    /**
+     * US3 - DEMANDES FÜR EINE FAHRT ABRUFEN
+     */
+    public List<DemandeTrajet> getDemandesPourTrajet(String trajetId) {
+        return demandeTrajetRepository.findByIdTrajetAndStatut(trajetId, "PENDING");
+    }
 }
