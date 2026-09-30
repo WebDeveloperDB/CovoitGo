@@ -11,6 +11,15 @@ services:
     networks:
       - covoitgo
 
+  healthcheck:
+    image: curlimages/curl
+    command: curl http://api:8080/api/health
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - covoitgo
+
   mongodb:
     image: mongo:7.0
     restart: unless-stopped

@@ -6,6 +6,20 @@ class ApiService {
   // Um auf das Backend auf deinem Computer (Host) zuzugreifen, benutzt Android "10.0.2.2"
   static const String baseUrl = 'http://10.0.2.2:8080/api';
 
+  // Helper method to get mock coordinates for cities (since we don't have Google Maps API yet)
+  static Map<String, double> getCoordinates(String city) {
+    final c = city.trim().toLowerCase();
+    if (c.contains('mulhouse')) return {'lat': 47.7508, 'lon': 7.3359};
+    if (c.contains('colmar')) return {'lat': 48.0794, 'lon': 7.3585};
+    if (c.contains('strasbourg')) return {'lat': 48.5734, 'lon': 7.7521};
+    if (c.contains('lyon')) return {'lat': 45.7640, 'lon': 4.8357};
+    if (c.contains('paris')) return {'lat': 48.8566, 'lon': 2.3522};
+    if (c.contains('huningue')) return {'lat': 47.5911, 'lon': 7.5842};
+    if (c.contains('saint-louis')) return {'lat': 47.5844, 'lon': 7.5583};
+    // Default fallback
+    return {'lat': 48.0, 'lon': 7.0};
+  }
+
   // ==========================================
   // US1: Fahrten suchen (Für den Passagier)
   // ==========================================
@@ -162,5 +176,19 @@ class ApiService {
       print('Erreur lors de la récupération des demandes: $e');
     }
     return [];
+  }
+
+  // Delete a trip
+  static Future<bool> supprimerTrajet(String trajetId) async {
+    final url = Uri.parse('$baseUrl/trajets/$trajetId');
+    try {
+      final response = await http.delete(url);
+      if (response.statusCode == 204) {
+        return true;
+      }
+    } catch (e) {
+      print('Erreur lors de la suppression: $e');
+    }
+    return false;
   }
 }

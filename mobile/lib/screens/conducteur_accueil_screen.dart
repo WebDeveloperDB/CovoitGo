@@ -205,7 +205,45 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("$depart → $destination", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(child: Text("$depart → $destination", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () async {
+                        // Confirm deletion
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text("Supprimer le trajet"),
+                            content: const Text("Voulez-vous vraiment supprimer ce trajet ?"),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Annuler")),
+                              TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("Supprimer", style: TextStyle(color: Colors.red))),
+                            ],
+                          ),
+                        );
+                        
+                        if (confirm == true) {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => const Center(child: CircularProgressIndicator()),
+                          );
+                          final success = await ApiService.supprimerTrajet(id);
+                          Navigator.pop(context);
+                          if (success) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Trajet supprimé avec succès")));
+                            _chargerDonnees();
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Erreur lors de la suppression")));
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 Row(
                   children: [

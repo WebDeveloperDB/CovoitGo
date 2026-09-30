@@ -19,7 +19,7 @@ public class CreerTrajetRequete {
     @Schema(description = "Date et heure prévues pour le départ (au format ISO-8601 UTC)", example = "2026-09-15T08:30:00Z")
     private Instant heureDepart;
 
-    @Schema(description = "Capacité totale de transport (nombre de places disponibles pour les passagers)", example = "3")
+    @Schema(description = "Capacité totale de transport (nombre de places disponibles pour les passagers)", example = "3", minimum = "1", maximum = "8")
     private int capacite;
 
     public CreerTrajetRequete() {

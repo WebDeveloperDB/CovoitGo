@@ -293,12 +293,14 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                           }
 
                           // 1. Koordinaten Demo (In echt würden wir Geocoding verwenden)
-                          // Wir tun so, als ob wir Mulhouse -> Colmar anfragen
+                          final departCoords = ApiService.getCoordinates(_departController.text);
+                          final arriveeCoords = ApiService.getCoordinates(_destinationController.text);
+
                           final result = await ApiService.rechercherTrajets(
-                            latDepart: 47.7508, 
-                            lonDepart: 7.3359,
-                            latArrivee: 48.0794, 
-                            lonArrivee: 7.3585,
+                            latDepart: departCoords['lat']!, 
+                            lonDepart: departCoords['lon']!,
+                            latArrivee: arriveeCoords['lat']!, 
+                            lonArrivee: arriveeCoords['lon']!,
                             heureDepart: "2026-09-15T08:30:00Z", // Demo-Datum (ISO)
                             places: places,
                           );

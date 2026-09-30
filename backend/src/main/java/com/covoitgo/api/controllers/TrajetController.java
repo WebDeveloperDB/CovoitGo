@@ -66,7 +66,7 @@ public class TrajetController {
                         @Parameter(description = "Latitude du lieu d'arrivée souhaité", example = "47.7508") @RequestParam double latitudeArrivee,
                         @Parameter(description = "Longitude du lieu d'arrivée souhaité", example = "7.3359") @RequestParam double longitudeArrivee,
                         @Parameter(description = "Date et heure de départ souhaitées (format ISO-8601)", example = "2026-09-15T08:30:00Z") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant heureDepart,
-                        @Parameter(description = "Nombre de places souhaitées", example = "1") @RequestParam int places) {
+                        @Parameter(description = "Nombre de places souhaitées (min: 1, max: 8)", example = "1") @RequestParam int places) {
 
                 // Wir delegieren die gesamte Berechnung und Filterung an den Service
                 List<RechercheTrajetResultat> resultats = trajetService.rechercherTrajets(
@@ -155,5 +155,12 @@ public class TrajetController {
         public ResponseEntity<List<com.covoitgo.api.models.DemandeTrajet>> getDemandesPourTrajet(
                         @PathVariable String trajetId) {
                 return ResponseEntity.ok(trajetService.getDemandesPourTrajet(trajetId));
+        }
+
+        @Operation(summary = "Supprimer un trajet")
+        @DeleteMapping("/{trajetId}")
+        public ResponseEntity<Void> supprimerTrajet(@PathVariable String trajetId) {
+                trajetService.supprimerTrajet(trajetId);
+                return ResponseEntity.noContent().build();
         }
 }

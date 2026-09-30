@@ -83,10 +83,10 @@ public class TrajetService {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Coordonnées GPS invalides.");
         }
 
-        // 2. Validierung der gewünschten Plätze (muss mindestens 1 Platz sein)
-        if (placesDemandees <= 0) {
+        // 2. Validierung der gewünschten Plätze (muss mindestens 1 Platz sein und max 8)
+        if (placesDemandees <= 0 || placesDemandees > 8) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Le nombre de places doit être supérieur à zéro.");
+                    "Le nombre de places doit être compris entre 1 et 8.");
         }
 
         // 3. Alle aktiven Fahrten aus der MongoDB-Datenbank laden
@@ -210,9 +210,9 @@ public class TrajetService {
     public Trajet creerTrajet(CreerTrajetRequete requete) {
 
         // Validierung: Kapazität muss mindestens 1 sein
-        if (requete.getCapacite() <= 0) {
+        if (requete.getCapacite() <= 0 || requete.getCapacite() > 8) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT,
-                    "La capacité doit être d'au moins 1 place.");
+                    "La capacité doit être comprise entre 1 et 8 places.");
         }
 
         // Validierung: Start und Ziel dürfen nicht fehlen
@@ -349,5 +349,12 @@ public class TrajetService {
      */
     public List<DemandeTrajet> getDemandesPourTrajet(String trajetId) {
         return demandeTrajetRepository.findByIdTrajetAndStatut(trajetId, "PENDING");
+    }
+
+    public void supprimerTrajet(String trajetId) {
+        Trajet trajet = trajetRepository.findById(trajetId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Trajet introuvable"));
+        trajet.setStatut("ANNULE");
+        trajetRepository.save(trajet);
     }
 }

@@ -35,17 +35,19 @@ class _ConducteurCreationTrajetScreenState extends State<ConducteurCreationTraje
     ).toUtc().toIso8601String();
 
     // MOCK-Koordinaten für die Demo
-    // In einer echten App würde man hier Google Maps Places API verwenden
+    final departCoords = ApiService.getCoordinates(_departLabel);
+    final arriveeCoords = ApiService.getCoordinates(_destinationLabel);
+
     final success = await ApiService.creerTrajet({
       "depart": {
         "label": _departLabel,
-        "latitude": 47.7508, // Mulhouse-Koordinaten als Fallback
-        "longitude": 7.3359
+        "latitude": departCoords['lat']!,
+        "longitude": departCoords['lon']!
       },
       "destination": {
         "label": _destinationLabel,
-        "latitude": 48.0794, // Colmar-Koordinaten als Fallback
-        "longitude": 7.3585
+        "latitude": arriveeCoords['lat']!,
+        "longitude": arriveeCoords['lon']!
       },
       "heureDepart": dateTime,
       "capacite": _capacite
