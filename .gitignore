@@ -16,6 +16,7 @@ maquette-connexion.svg
 maquette-accueil-passager.svg
 maquette-accueil-conducteur.svg
 SCHEMA_BDD_NOSQL.md
+SCHEMA_BDD_SQLITE.md
 EXPLICATION_CODE_JAVA.md
 JIRA_ETAPE5.md
 # Environment files: ignore real secrets, but keep template examples
