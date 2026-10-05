@@ -76,6 +76,25 @@ class DatabaseHelper {
     return result.map((json) => Trajet.fromMap(json)).toList();
   }
 
+  Future<Trajet?> getTrajetById(String id) async {
+    final db = await instance.database;
+    final result = await db.query('trajets', where: 'id = ?', whereArgs: [id]);
+    if (result.isNotEmpty) {
+      return Trajet.fromMap(result.first);
+    }
+    return null;
+  }
+
+  Future<int> updateTrajetSyncStatus(String id, int synced) async {
+    final db = await instance.database;
+    return await db.update(
+      'trajets',
+      {'synced': synced},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<int> updateTrajet(Trajet trajet) async {
     final db = await instance.database;
     return db.update(
@@ -111,6 +130,25 @@ class DatabaseHelper {
     final db = await instance.database;
     final result = await db.query('demandes', where: 'synced = ?', whereArgs: [0]);
     return result.map((json) => Demande.fromMap(json)).toList();
+  }
+
+  Future<Demande?> getDemandeById(String id) async {
+    final db = await instance.database;
+    final result = await db.query('demandes', where: 'id = ?', whereArgs: [id]);
+    if (result.isNotEmpty) {
+      return Demande.fromMap(result.first);
+    }
+    return null;
+  }
+
+  Future<int> updateDemandeSyncStatus(String id, int synced) async {
+    final db = await instance.database;
+    return await db.update(
+      'demandes',
+      {'synced': synced},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future<int> updateDemande(Demande demande) async {

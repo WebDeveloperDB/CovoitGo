@@ -27,6 +27,7 @@ class Trajet {
     required this.lastModified,
   });
 
+  // Wandelt das Objekt in eine Map für die lokale SQLite-Datenbank um
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -44,20 +45,110 @@ class Trajet {
     };
   }
 
+  // Erstellt ein Trajet-Objekt aus den Daten einer SQLite-Zeile
   factory Trajet.fromMap(Map<String, dynamic> map) {
     return Trajet(
       id: map['id'],
       idConducteur: map['idConducteur'],
-      departLatitude: map['depart_latitude'],
-      departLongitude: map['depart_longitude'],
-      destinationLatitude: map['destination_latitude'],
-      destinationLongitude: map['destination_longitude'],
+      departLatitude: (map['depart_latitude'] as num).toDouble(),
+      departLongitude: (map['depart_longitude'] as num).toDouble(),
+      destinationLatitude: (map['destination_latitude'] as num).toDouble(),
+      destinationLongitude: (map['destination_longitude'] as num).toDouble(),
       heureDepart: map['heureDepart'],
-      capacite: map['capacite'],
-      placesDisponibles: map['placesDisponibles'],
+      capacite: (map['capacite'] as num).toInt(),
+      placesDisponibles: (map['placesDisponibles'] as num).toInt(),
       statut: map['statut'],
-      synced: map['synced'],
+      synced: (map['synced'] as num).toInt(),
       lastModified: map['lastModified'],
+    );
+  }
+
+  // Erstellt ein Trajet-Objekt aus der JSON-Antwort des Spring-Boot-Backends (MongoDB)
+  factory Trajet.fromJson(Map<String, dynamic> json) {
+    double depLat = 0.0;
+    double depLon = 0.0;
+    if (json['depart'] is Map) {
+      depLat = (json['depart']['latitude'] as num?)?.toDouble() ?? 0.0;
+      depLon = (json['depart']['longitude'] as num?)?.toDouble() ?? 0.0;
+    } else {
+      depLat = (json['depart_latitude'] as num?)?.toDouble() ?? 0.0;
+      depLon = (json['depart_longitude'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    double destLat = 0.0;
+    double destLon = 0.0;
+    if (json['destination'] is Map) {
+      destLat = (json['destination']['latitude'] as num?)?.toDouble() ?? 0.0;
+      destLon = (json['destination']['longitude'] as num?)?.toDouble() ?? 0.0;
+    } else {
+      destLat = (json['destination_latitude'] as num?)?.toDouble() ?? 0.0;
+      destLon = (json['destination_longitude'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    return Trajet(
+      id: json['id']?.toString() ?? '',
+      idConducteur: json['idConducteur']?.toString() ?? '',
+      departLatitude: depLat,
+      departLongitude: depLon,
+      destinationLatitude: destLat,
+      destinationLongitude: destLon,
+      heureDepart: json['heureDepart']?.toString() ?? '',
+      capacite: (json['capacite'] as num?)?.toInt() ?? 0,
+      placesDisponibles: (json['placesDisponibles'] as num?)?.toInt() ?? 0,
+      statut: json['statut']?.toString() ?? 'ACTIVE',
+      synced: 1, // Kommt vom Server, ist also bereits synchronisiert
+      lastModified: json['misAJourLe']?.toString() ??
+          json['creeLe']?.toString() ??
+          DateTime.now().toUtc().toIso8601String(),
+    );
+  }
+
+  // Bereitet das JSON für die Erstellung über die API (POST /api/trajets) vor
+  Map<String, dynamic> toApiJson() {
+    return {
+      'depart': {
+        'latitude': departLatitude,
+        'longitude': departLongitude,
+        'nomLieu': 'Départ',
+      },
+      'destination': {
+        'latitude': destinationLatitude,
+        'longitude': destinationLongitude,
+        'nomLieu': 'Destination',
+      },
+      'heureDepart': heureDepart,
+      'capacite': capacite,
+    };
+  }
+
+  // Erlaubt das Kopieren mit einzelnen geänderten Feldern (z. B. um synced auf 1 zu setzen)
+  Trajet copyWith({
+    String? id,
+    String? idConducteur,
+    double? departLatitude,
+    double? departLongitude,
+    double? destinationLatitude,
+    double? destinationLongitude,
+    String? heureDepart,
+    int? capacite,
+    int? placesDisponibles,
+    String? statut,
+    int? synced,
+    String? lastModified,
+  }) {
+    return Trajet(
+      id: id ?? this.id,
+      idConducteur: idConducteur ?? this.idConducteur,
+      departLatitude: departLatitude ?? this.departLatitude,
+      departLongitude: departLongitude ?? this.departLongitude,
+      destinationLatitude: destinationLatitude ?? this.destinationLatitude,
+      destinationLongitude: destinationLongitude ?? this.destinationLongitude,
+      heureDepart: heureDepart ?? this.heureDepart,
+      capacite: capacite ?? this.capacite,
+      placesDisponibles: placesDisponibles ?? this.placesDisponibles,
+      statut: statut ?? this.statut,
+      synced: synced ?? this.synced,
+      lastModified: lastModified ?? this.lastModified,
     );
   }
 }
