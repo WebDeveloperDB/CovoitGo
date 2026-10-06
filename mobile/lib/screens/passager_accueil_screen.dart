@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'passager_reservation_screen.dart';
+import '../database/database_helper.dart';
+import '../models/demande.dart';
 
 class PassagerAccueilScreen extends StatefulWidget {
   const PassagerAccueilScreen({super.key});
@@ -11,14 +13,15 @@ class PassagerAccueilScreen extends StatefulWidget {
 
 class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
   // Dummy-Variable für den Namen des eingeloggten Benutzers.
-  // Später holen wir diesen Namen dynamisch aus der Datenbank.
   final String userName = "Passager";
   
   // Zeigt an, ob wir bereits eine Suche durchgeführt haben.
   bool hasSearched = false; 
+  String noResultReason = "";
 
   // Hier speichern wir die Ergebnisse aus dem Backend!
   List<dynamic> resultatsApi = []; 
+  List<Demande> _mesReservations = [];
 
   // Variablen zum Speichern des gewählten Datums und der Uhrzeit
   DateTime? selectedDate;
@@ -29,6 +32,80 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
   final TextEditingController _departController = TextEditingController();
   final TextEditingController _destinationController = TextEditingController();
   final TextEditingController _placesController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _chargerReservations();
+  }
+
+  Future<void> _chargerReservations() async {
+    final demandes = await DatabaseHelper.instance.getAllDemandes();
+    setState(() {
+      _mesReservations = demandes;
+    });
+  }
+
+  Future<void> _annulerReservation(String demandeId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Annuler la réservation"),
+        content: const Text("Voulez-vous vraiment annuler cette réservation ?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Non")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Oui, annuler", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await DatabaseHelper.instance.deleteDemande(demandeId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Réservation annulée avec succès")),
+      );
+      _chargerReservations();
+    }
+  }
+
+  String _resolveCity(dynamic lieu, String fallback) {
+    if (lieu is Map) {
+      final label = lieu['label']?.toString();
+      if (label != null && label.isNotEmpty && label != 'Départ' && label != 'Destination' && label != 'Inconnu') {
+        return label;
+      }
+      final lat = (lieu['latitude'] as num?)?.toDouble();
+      final lon = (lieu['longitude'] as num?)?.toDouble();
+      if (lat != null && lon != null) {
+        final resolved = ApiService.getCityName(lat, lon);
+        if (resolved.isNotEmpty) return resolved;
+      }
+    }
+    return fallback;
+  }
+
+  String _formatDateHeure(dynamic heureDepart) {
+    if (heureDepart == null) return "Non précisé";
+    final str = heureDepart.toString();
+    if (str.contains('T')) {
+      try {
+        final dt = DateTime.parse(str).toLocal();
+        final jour = dt.day.toString().padLeft(2, '0');
+        final mois = dt.month.toString().padLeft(2, '0');
+        final annee = dt.year;
+        final heure = dt.hour.toString().padLeft(2, '0');
+        final minute = dt.minute.toString().padLeft(2, '0');
+        return "$jour/$mois/$annee à $heure:$minute";
+      } catch (e) {
+        return str;
+      }
+    }
+    return str;
+  }
 
   // Methode, um den Kalender zu öffnen (Date Picker)
   Future<void> _selectDate(BuildContext context) async {
@@ -94,20 +171,28 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                         itemCount: resultatsApi.length,
                         itemBuilder: (context, index) {
                           final trajet = resultatsApi[index];
-                          final departLabel = trajet['depart']?['label'] ?? 'Inconnu';
-                          final destinationLabel = trajet['destination']?['label'] ?? 'Inconnu';
+                          final depLabel = _resolveCity(trajet['depart'], _departController.text.isNotEmpty ? _departController.text : 'Départ');
+                          final destLabel = _resolveCity(trajet['destination'], _destinationController.text.isNotEmpty ? _destinationController.text : 'Destination');
                           final score = trajet['score'] ?? 'N/A';
+                          final dateHeure = _formatDateHeure(trajet['heureDepart']);
+                          final places = trajet['placesDisponibles'] ?? '?';
                           
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             child: ListTile(
-                              onTap: () {
-                                Navigator.push(context, MaterialPageRoute(
-                                  builder: (context) => PassagerReservationScreen(trajet: trajet),
+                              onTap: () async {
+                                final res = await Navigator.push(context, MaterialPageRoute(
+                                  builder: (context) => PassagerReservationScreen(
+                                    trajet: trajet,
+                                    placesDemandees: int.tryParse(_placesController.text) ?? 1,
+                                  ),
                                 ));
+                                if (res == true) {
+                                  _chargerReservations();
+                                }
                               },
-                              title: Text("$departLabel → $destinationLabel"),
-                              subtitle: Text("Score: $score%"),
+                              title: Text("$depLabel → $destLabel", style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text("$dateHeure • $places place(s) • Score: $score%"),
                               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                             ),
                           );
@@ -206,6 +291,14 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Liste der eigenen Reservierungen (falls vorhanden)
+                    if (_mesReservations.isNotEmpty) ...[
+                      _buildMesReservations(),
+                      const SizedBox(height: 24),
+                      const Divider(thickness: 1),
+                      const SizedBox(height: 16),
+                    ],
+
                     // Startort
                     _buildTextField("Départ", "Ex: Mulhouse", controller: _departController),
                     const SizedBox(height: 16),
@@ -278,7 +371,10 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                         ),
                         onPressed: () async {
                           // Validation
-                          if (_departController.text.isEmpty || _destinationController.text.isEmpty) {
+                          final depText = _departController.text.trim();
+                          final destText = _destinationController.text.trim();
+
+                          if (depText.isEmpty || destText.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez remplir le départ et la destination.'), backgroundColor: Colors.red));
                             return;
                           }
@@ -292,22 +388,67 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                             return;
                           }
 
-                          // 1. Koordinaten Demo (In echt würden wir Geocoding verwenden)
-                          final departCoords = ApiService.getCoordinates(_departController.text);
-                          final arriveeCoords = ApiService.getCoordinates(_destinationController.text);
+                          // 1. Detaillierte Prüfung der Städte
+                          if (!ApiService.isKnownCity(depText)) {
+                            setState(() {
+                              hasSearched = true;
+                              resultatsApi = [];
+                              noResultReason = "Aucun trajet trouvé pour la ville de départ '$depText'.";
+                            });
+                            return;
+                          }
+                          if (!ApiService.isKnownCity(destText)) {
+                            setState(() {
+                              hasSearched = true;
+                              resultatsApi = [];
+                              noResultReason = "Aucun trajet trouvé pour la destination '$destText'.";
+                            });
+                            return;
+                          }
+
+                          // 2. Datum und Uhrzeit präzise zusammensetzen (ISO-Format für Backend)
+                          DateTime searchDateTime = DateTime.now();
+                          if (selectedDate != null) {
+                            final hour = selectedTime?.hour ?? 8;
+                            final minute = selectedTime?.minute ?? 0;
+                            searchDateTime = DateTime(selectedDate!.year, selectedDate!.month, selectedDate!.day, hour, minute);
+                          }
+                          final isoDate = searchDateTime.toUtc().toIso8601String();
+
+                          final departCoords = ApiService.getCoordinates(depText);
+                          final arriveeCoords = ApiService.getCoordinates(destText);
 
                           final result = await ApiService.rechercherTrajets(
                             latDepart: departCoords['lat']!, 
                             lonDepart: departCoords['lon']!,
                             latArrivee: arriveeCoords['lat']!, 
                             lonArrivee: arriveeCoords['lon']!,
-                            heureDepart: "2026-09-15T08:30:00Z", // Demo-Datum (ISO)
+                            heureDepart: isoDate,
                             places: places,
                           );
+
+                          String reason = "";
+                          if (result.isEmpty) {
+                            // Prüfung auf Ursache (Plätze oder Uhrzeit)
+                            final testPlaces1 = await ApiService.rechercherTrajets(
+                              latDepart: departCoords['lat']!,
+                              lonDepart: departCoords['lon']!,
+                              latArrivee: arriveeCoords['lat']!,
+                              lonArrivee: arriveeCoords['lon']!,
+                              heureDepart: isoDate,
+                              places: 1,
+                            );
+                            if (testPlaces1.isNotEmpty) {
+                              reason = "Nombre de places insuffisant pour ce trajet ($places demandée(s)).";
+                            } else {
+                              reason = "Aucun trajet disponible pour cette date ou cette heure sur cet itinéraire.";
+                            }
+                          }
 
                           setState(() {
                             resultatsApi = result;
                             hasSearched = true;
+                            noResultReason = reason;
                           });
                         },
                         child: const Text('Rechercher', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -323,9 +464,15 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                     // ==========================================
                     if (hasSearched) ...[
                       if (resultatsApi.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Center(child: Text("Aucun trajet trouvé pour ces critères.", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          child: Center(
+                            child: Text(
+                              noResultReason.isNotEmpty ? noResultReason : "Aucun trajet trouvé pour ces critères.", 
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                          ),
                         )
                       else ...[
                         const Text(
@@ -353,7 +500,7 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        "${resultatsApi.first['depart']?['label'] ?? 'Inconnu'} → ${resultatsApi.first['destination']?['label'] ?? 'Inconnu'}", 
+                                        "${_resolveCity(resultatsApi.first['depart'], _departController.text)} → ${_resolveCity(resultatsApi.first['destination'], _destinationController.text)}", 
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -373,9 +520,7 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                                     const Icon(Icons.access_time, size: 18, color: Colors.black54),
                                     const SizedBox(width: 4),
                                     Text(
-                                      (resultatsApi.first['heureDepart'] ?? '08:10').toString().contains('T') 
-                                        ? (resultatsApi.first['heureDepart'] as String).split('T')[1].substring(0, 5) 
-                                        : (resultatsApi.first['heureDepart'] ?? '08:10'), 
+                                      _formatDateHeure(resultatsApi.first['heureDepart']), 
                                       style: TextStyle(color: Colors.grey.shade700, fontSize: 14)
                                     ),
                                     const SizedBox(width: 16),
@@ -387,12 +532,16 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                               const SizedBox(height: 12),
                               // Der Button/Link "Demander une place"
                               GestureDetector(
-                                onTap: () {
-                                  Navigator.push(context, MaterialPageRoute(
+                                onTap: () async {
+                                  final res = await Navigator.push(context, MaterialPageRoute(
                                     builder: (context) => PassagerReservationScreen(
-                                      trajet: resultatsApi.isNotEmpty ? resultatsApi.first : {}
+                                      trajet: resultatsApi.isNotEmpty ? resultatsApi.first : {},
+                                      placesDemandees: int.tryParse(_placesController.text) ?? 1,
                                     ),
                                   ));
+                                  if (res == true) {
+                                    _chargerReservations();
+                                  }
                                 },
                                 child: const Row(
                                   children: [
@@ -431,6 +580,121 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMesReservations() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              "Mes réservations",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E463D)),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E463D),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                "${_mesReservations.length}",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ..._mesReservations.map((d) {
+          Color statusBgColor = Colors.orange.shade100;
+          Color statusTextColor = Colors.orange.shade800;
+          String statusText = "En attente";
+
+          if (d.statut == 'ACCEPTE' || d.statut == 'ACCEPTED') {
+            statusBgColor = Colors.green.shade100;
+            statusTextColor = Colors.green.shade800;
+            statusText = "Confirmée";
+          } else if (d.statut == 'REFUSE' || d.statut == 'REFUSED') {
+            statusBgColor = Colors.red.shade100;
+            statusTextColor = Colors.red.shade800;
+            statusText = "Refusée";
+          }
+
+          return Card(
+            elevation: 2,
+            margin: const EdgeInsets.only(bottom: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.bookmark, color: Color(0xFF1E463D), size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          d.motif.isNotEmpty ? d.motif : "Trajet réservé",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E463D)),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "Demande : ${d.placesDemandees} place(s)",
+                          style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: statusBgColor,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                statusText,
+                                style: TextStyle(color: statusTextColor, fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            if (d.synced == 0) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.shade50,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: Colors.orange, width: 0.8),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.cloud_off, size: 10, color: Colors.orange),
+                                    SizedBox(width: 2),
+                                    Text("Hors-ligne", style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    tooltip: "Annuler cette réservation",
+                    onPressed: () => _annulerReservation(d.id),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

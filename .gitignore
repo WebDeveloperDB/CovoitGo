@@ -31,3 +31,5 @@ JIRA_ETAPE5.md
 .DS_Store
 *.swp
 JIRA_ETAPE5.md
+*.deb
+*.db

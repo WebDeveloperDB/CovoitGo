@@ -1,3 +1,5 @@
+import '../services/api_service.dart';
+
 class Trajet {
   final String id;
   final String idConducteur;
@@ -109,12 +111,12 @@ class Trajet {
       'depart': {
         'latitude': departLatitude,
         'longitude': departLongitude,
-        'nomLieu': 'Départ',
+        'label': ApiService.getCityName(departLatitude, departLongitude),
       },
       'destination': {
         'latitude': destinationLatitude,
         'longitude': destinationLongitude,
-        'nomLieu': 'Destination',
+        'label': ApiService.getCityName(destinationLatitude, destinationLongitude),
       },
       'heureDepart': heureDepart,
       'capacite': capacite,

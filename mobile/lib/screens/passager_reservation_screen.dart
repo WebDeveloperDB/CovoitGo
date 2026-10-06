@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../database/database_helper.dart';
+import '../models/demande.dart';
+
 
 class PassagerReservationScreen extends StatefulWidget {
   final Map<String, dynamic> trajet;
+  final int placesDemandees;
 
-  const PassagerReservationScreen({super.key, required this.trajet});
+  const PassagerReservationScreen({
+    super.key,
+    required this.trajet,
+    this.placesDemandees = 1,
+  });
 
   @override
   State<PassagerReservationScreen> createState() => _PassagerReservationScreenState();
@@ -18,36 +26,93 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
       isSubmitting = true;
     });
 
-    // Envoi de la demande de réservation
-    // L'identifiant "passager_001" est un faux ID pour l'instant (le login n'étant pas actif)
-    final success = await ApiService.envoyerDemande(
-      widget.trajet['idTrajet'] ?? '66f1a8c9e4b0123456789abc',
-      {
-        'idPassager': 'passager_001',
-        'placesDemandees': 1,
-      },
-      'dummy_token' // Remplacé plus tard par le vrai token
+    final trajetId = widget.trajet['idTrajet']?.toString() ?? 
+                     widget.trajet['id']?.toString() ?? 
+                     '66f1a8c9e4b0123456789abc';
+
+    // 1. Versuch: Online über die API senden
+    bool isOnlineSuccess = false;
+    try {
+      isOnlineSuccess = await ApiService.envoyerDemande(
+        trajetId,
+        {
+          'idPassager': 'passager_001',
+          'placesDemandees': widget.placesDemandees,
+        },
+        'dummy_token',
+      );
+    } catch (e) {
+      // Offline-Fall: Fehler abfangen
+      isOnlineSuccess = false;
+    }
+
+    // Ermittlung der Städtenamen für Speicherung und Anzeige
+    String depNom = widget.trajet['depart']?['label'] ?? '';
+    if (depNom.isEmpty || depNom == 'Départ' || depNom == 'Inconnu') {
+      final lat = widget.trajet['depart']?['latitude'] ?? widget.trajet['depart_latitude'];
+      final lon = widget.trajet['depart']?['longitude'] ?? widget.trajet['depart_longitude'];
+      if (lat != null && lon != null) {
+        depNom = ApiService.getCityName((lat as num).toDouble(), (lon as num).toDouble());
+      }
+    }
+    if (depNom.isEmpty) depNom = 'Départ';
+
+    String destNom = widget.trajet['destination']?['label'] ?? '';
+    if (destNom.isEmpty || destNom == 'Destination' || destNom == 'Inconnu') {
+      final lat = widget.trajet['destination']?['latitude'] ?? widget.trajet['destination_latitude'];
+      final lon = widget.trajet['destination']?['longitude'] ?? widget.trajet['destination_longitude'];
+      if (lat != null && lon != null) {
+        destNom = ApiService.getCityName((lat as num).toDouble(), (lon as num).toDouble());
+      }
+    }
+    if (destNom.isEmpty) destNom = 'Destination';
+
+    final routeInfo = "$depNom → $destNom";
+
+    // 2. Lokales Demande-Objekt für SQLite erstellen
+    final nouvelleDemande = Demande(
+      id: "temp_${DateTime.now().millisecondsSinceEpoch}",
+      idTrajet: trajetId,
+      idPassager: 'passager_001',
+      placesDemandees: widget.placesDemandees,
+      statut: 'PENDING',
+      motif: routeInfo, // Speichert den Namen der Fahrt für die Liste "Mes réservations"
+      synced: isOnlineSuccess ? 1 : 0, // 1 = online übertragen, 0 = offline ausstehend
+      lastModified: DateTime.now().toUtc().toIso8601String(),
     );
+
+    // 3. In lokaler SQLite-Datenbank speichern (damit der Passagier seine Reservierungen sieht)
+    await DatabaseHelper.instance.insertDemande(nouvelleDemande);
+    print('SQLite: Réservation enregistrée localement (synced: ${nouvelleDemande.synced})');
 
     setState(() {
       isSubmitting = false;
     });
 
-    if (success) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Réservation confirmée avec succès !'), backgroundColor: Colors.green),
-        );
-        Navigator.pop(context); // Retour à la page d'accueil
-      }
+    if (!mounted) return;
+
+    // 4. Passende Rückmeldung an den Nutzer (Klarstellung: wartet auf Fahrer-Bestätigung)
+    if (isOnlineSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Demande envoyée avec succès ! En attente de confirmation par le conducteur."),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 4),
+        ),
+      );
     } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur lors de la réservation.'), backgroundColor: Colors.red),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Mode hors-ligne : demande enregistrée. En attente de confirmation par le conducteur dès reconnexion."),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
     }
+
+    Navigator.pop(context, true);
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -55,14 +120,36 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
     final headerColor = const Color(0xFF1E463D);
     final btnColor = const Color(0xFFE29E4A);
 
-    // Récupération des données du trajet (avec valeurs par défaut si nulles)
-    final departLabel = widget.trajet['depart']?['label'] ?? 'Mulhouse';
-    final destinationLabel = widget.trajet['destination']?['label'] ?? 'Colmar';
+    // Récupération dynamique des noms de villes avec résolution de coordonnées
+    String departLabel = widget.trajet['depart']?['label'] ?? '';
+    if (departLabel.isEmpty || departLabel == 'Départ' || departLabel == 'Inconnu') {
+      final lat = widget.trajet['depart']?['latitude'] ?? widget.trajet['depart_latitude'];
+      final lon = widget.trajet['depart']?['longitude'] ?? widget.trajet['depart_longitude'];
+      if (lat != null && lon != null) {
+        departLabel = ApiService.getCityName((lat as num).toDouble(), (lon as num).toDouble());
+      }
+    }
+    if (departLabel.isEmpty) departLabel = 'Départ';
+
+    String destinationLabel = widget.trajet['destination']?['label'] ?? '';
+    if (destinationLabel.isEmpty || destinationLabel == 'Destination' || destinationLabel == 'Inconnu') {
+      final lat = widget.trajet['destination']?['latitude'] ?? widget.trajet['destination_latitude'];
+      final lon = widget.trajet['destination']?['longitude'] ?? widget.trajet['destination_longitude'];
+      if (lat != null && lon != null) {
+        destinationLabel = ApiService.getCityName((lat as num).toDouble(), (lon as num).toDouble());
+      }
+    }
+    if (destinationLabel.isEmpty) destinationLabel = 'Destination';
     
-    // Nettoyage et formatage simple de l'heure (ex: 2026-09-15T08:30:00Z -> 08:30)
-    String heureDepartStr = widget.trajet['heureDepart'] ?? '08:10';
-    if (heureDepartStr.contains('T')) {
-      heureDepartStr = heureDepartStr.split('T')[1].substring(0, 5);
+    // Formatage complet Date et Heure (ex: 15/10/2026 à 11:00)
+    String dateHeureStr = widget.trajet['heureDepart'] ?? '08:10';
+    if (dateHeureStr.contains('T')) {
+      try {
+        final dt = DateTime.parse(dateHeureStr).toLocal();
+        dateHeureStr = "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} à ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+      } catch (e) {
+        // En cas d'erreur
+      }
     }
     
     final score = widget.trajet['score'] ?? '92';
@@ -96,7 +183,7 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
                       children: [
                         const Icon(Icons.access_time, color: Colors.grey),
                         const SizedBox(width: 8),
-                        Text("Départ prévu : $heureDepartStr", style: const TextStyle(fontSize: 16)),
+                        Text("Départ prévu : $dateHeureStr", style: const TextStyle(fontSize: 16)),
                       ],
                     ),
                     const Divider(height: 24),
@@ -116,11 +203,14 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
                       ],
                     ),
                     const Divider(height: 24),
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.event_seat, color: Colors.grey),
-                        SizedBox(width: 8),
-                        Text("Vous demandez : 1 place", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const Icon(Icons.event_seat, color: Colors.grey),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Vous demandez : ${widget.placesDemandees} place${widget.placesDemandees > 1 ? 's' : ''}",
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
                       ],
                     ),
                   ],

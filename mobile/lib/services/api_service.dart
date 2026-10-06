@@ -20,6 +20,28 @@ class ApiService {
     return {'lat': 48.0, 'lon': 7.0};
   }
 
+  static bool isKnownCity(String city) {
+    final c = city.trim().toLowerCase();
+    return c.contains('mulhouse') ||
+        c.contains('colmar') ||
+        c.contains('strasbourg') ||
+        c.contains('lyon') ||
+        c.contains('paris') ||
+        c.contains('huningue') ||
+        c.contains('saint-louis');
+  }
+
+  static String getCityName(double lat, double lon) {
+    if ((lat - 48.57).abs() < 0.15) return 'Strasbourg';
+    if ((lat - 47.75).abs() < 0.15) return 'Mulhouse';
+    if ((lat - 48.07).abs() < 0.15) return 'Colmar';
+    if ((lat - 45.76).abs() < 0.15) return 'Lyon';
+    if ((lat - 48.85).abs() < 0.15) return 'Paris';
+    if ((lat - 47.59).abs() < 0.1) return 'Huningue';
+    if ((lat - 47.58).abs() < 0.1) return 'Saint-Louis';
+    return 'Lieu ($lat, $lon)';
+  }
+
   // ==========================================
   // US1: Fahrten suchen (Für den Passagier)
   // ==========================================

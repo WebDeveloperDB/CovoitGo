@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'conducteur_creation_trajet_screen.dart';
+import '../database/database_helper.dart';
+import '../services/sync_service.dart';
+
 
 class ConducteurAccueilScreen extends StatefulWidget {
   const ConducteurAccueilScreen({super.key});
@@ -27,20 +30,45 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final trajets = await ApiService.getMesTrajetsActifs();
-      Map<String, List<dynamic>> demandes = {};
+      // 1. ZUERST aus der lokalen SQLite-Datenbank laden (damit Daten sofort offline da sind!)
+      final localTrajets = await DatabaseHelper.instance.getAllTrajets();
+      if (mounted) {
+        setState(() => _trajets = localTrajets);
+      }
       
-      // Fetch requests for each active trip
-      for (var trajet in trajets) {
-        if (trajet['id'] != null) {
-          final reqs = await ApiService.getDemandesPourTrajet(trajet['id']);
-          demandes[trajet['id']] = reqs;
+      // 2. Wenn online: Automatisch im Hintergrund synchronisieren
+      try {
+        await SyncService().synchroniserTout();
+      } catch (e) {
+        // Offline-Fall: Fehler ignorieren, wir nutzen einfach die lokalen Daten
+        print('Offline-Modus aktiv: Synchronisation übersprungen');
+      }
+
+      // 3. Nach dem Sync: Frische Daten aus SQLite holen
+      final trajetsApresSync = await DatabaseHelper.instance.getAllTrajets();
+      
+      // Duplikate bereinigen (nur eine Fahrt pro Abfahrt/Ziel/Uhrzeit behalten)
+      final Map<String, dynamic> uniqueTrajets = {};
+      for (var t in trajetsApresSync) {
+        final key = "${t.departLatitude}_${t.destinationLatitude}_${t.heureDepart}";
+        if (!uniqueTrajets.containsKey(key)) {
+          uniqueTrajets[key] = t;
+        } else {
+          // Den doppelten Eintrag aus SQLite löschen
+          await DatabaseHelper.instance.deleteTrajet(t.id);
         }
       }
 
+      // Lokale Buchungsanfragen für diese Fahrten aus SQLite holen
+      final allDemandes = await DatabaseHelper.instance.getAllDemandes();
+      Map<String, List<dynamic>> demandesMap = {};
+      for (var d in allDemandes) {
+        demandesMap.putIfAbsent(d.idTrajet, () => []).add(d.toMap());
+      }
+
       setState(() {
-        _trajets = trajets;
-        _demandesParTrajet = demandes;
+        _trajets = uniqueTrajets.values.map((t) => t.toMap()).toList();
+        _demandesParTrajet = demandesMap;
         _isLoading = false;
       });
     } catch (e) {
@@ -50,29 +78,83 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
   }
 
   Future<void> _gererDemande(String trajetId, String demandeId, String statut) async {
-    // Show a loading indicator dialog
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    // "" as token since auth isn't implemented
-    final success = await ApiService.gererDemande(trajetId, demandeId, statut, "", "");
-    
-    // Close the loading dialog
+    // 1. Wenn online: An die API senden
+    try {
+      await ApiService.gererDemande(trajetId, demandeId, statut, "", "");
+    } catch (e) {
+      print('Erreur API lors de gererDemande: $e');
+    }
+
+    // 2. In lokaler SQLite aktualisieren
+    final demande = await DatabaseHelper.instance.getDemandeById(demandeId);
+    if (statut == "ACCEPTE") {
+      // Bei Annahme: Bleibt in der Liste als ACCEPTE erhalten
+      if (demande != null) {
+        await DatabaseHelper.instance.updateDemande(demande.copyWith(statut: 'ACCEPTE'));
+      }
+      // Freie Plätze der Fahrt reduzieren
+      final trajet = await DatabaseHelper.instance.getTrajetById(trajetId);
+      if (trajet != null && demande != null) {
+        final newPlaces = (trajet.placesDisponibles - demande.placesDemandees).clamp(0, 8);
+        await DatabaseHelper.instance.updateTrajet(trajet.copyWith(placesDisponibles: newPlaces));
+      }
+    } else {
+      // Bei Ablehnung: Aus lokaler SQLite löschen
+      await DatabaseHelper.instance.deleteDemande(demandeId);
+    }
+
+    if (!mounted) return;
     Navigator.of(context).pop();
 
-    if (success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(statut == "ACCEPTE" ? 'Demande acceptée avec succès' : 'Demande refusée'),
+        backgroundColor: statut == "ACCEPTE" ? Colors.green : Colors.grey,
+      ),
+    );
+    
+    _chargerDonnees();
+  }
+
+  // Ermöglicht es dem Fahrer, eine bereits angenommene Reservierung wieder zu entfernen
+  Future<void> _supprimerDemandeAcceptee(String trajetId, String demandeId, int placesDemandees) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Annuler cette réservation"),
+        content: const Text("Voulez-vous retirer ce passager de votre trajet ? Les places seront libérées."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Annuler")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Retirer", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await DatabaseHelper.instance.deleteDemande(demandeId);
+
+      // Plätze wieder freigeben
+      final trajet = await DatabaseHelper.instance.getTrajetById(trajetId);
+      if (trajet != null) {
+        await DatabaseHelper.instance.updateTrajet(
+          trajet.copyWith(placesDisponibles: (trajet.placesDisponibles + placesDemandees).clamp(0, trajet.capacite)),
+        );
+      }
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Demande $statut avec succès')),
+        const SnackBar(content: Text("Réservation retirée et places libérées")),
       );
-      // Reload data to refresh UI (update seats available and remove request)
       _chargerDonnees();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur lors du traitement')),
-      );
     }
   }
 
@@ -177,12 +259,33 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
   }
 
   Widget _buildTrajetCard(dynamic trajet) {
-    final depart = trajet['depart']?['label'] ?? 'Inconnu';
-    final destination = trajet['destination']?['label'] ?? 'Inconnu';
+    // Ermittlung der Städtenamen (auch wenn die Fahrt offline aus SQLite geladen wird)
+    String depart = trajet['depart']?['label'] ?? '';
+    if (depart.isEmpty && trajet['depart_latitude'] != null) {
+      final lat = (trajet['depart_latitude'] as num).toDouble();
+      if ((lat - 47.75).abs() < 0.1) depart = 'Mulhouse';
+      else if ((lat - 48.07).abs() < 0.1) depart = 'Colmar';
+      else if ((lat - 48.57).abs() < 0.1) depart = 'Strasbourg';
+      else depart = 'Départ (${lat.toStringAsFixed(2)})';
+    }
+    if (depart.isEmpty) depart = 'Inconnu';
+
+    String destination = trajet['destination']?['label'] ?? '';
+    if (destination.isEmpty && trajet['destination_latitude'] != null) {
+      final lat = (trajet['destination_latitude'] as num).toDouble();
+      if ((lat - 47.75).abs() < 0.1) destination = 'Mulhouse';
+      else if ((lat - 48.07).abs() < 0.1) destination = 'Colmar';
+      else if ((lat - 48.57).abs() < 0.1) destination = 'Strasbourg';
+      else destination = 'Arrivée (${lat.toStringAsFixed(2)})';
+    }
+    if (destination.isEmpty) destination = 'Inconnu';
+
     final date = _formatDate(trajet['heureDepart']);
     final places = trajet['placesDisponibles'] ?? 0;
-    final id = trajet['id'];
-    final demandes = _demandesParTrajet[id] ?? [];
+    final id = trajet['id']?.toString() ?? '';
+    final toutesDemandes = _demandesParTrajet[id] ?? [];
+    final demandesEnAttente = toutesDemandes.where((d) => d['statut'] == 'PENDING' || d['statut'] == 'EN_ATTENTE').toList();
+    final demandesAcceptees = toutesDemandes.where((d) => d['statut'] == 'ACCEPTE' || d['statut'] == 'ACCEPTED').toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,7 +311,12 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(child: Text("$depart → $destination", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                    Expanded(
+                      child: Text(
+                        "$depart → $destination",
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
                       onPressed: () async {
@@ -231,19 +339,50 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
                             barrierDismissible: false,
                             builder: (context) => const Center(child: CircularProgressIndicator()),
                           );
-                          final success = await ApiService.supprimerTrajet(id);
-                          Navigator.pop(context);
-                          if (success) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Trajet supprimé avec succès")));
-                            _chargerDonnees();
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Erreur lors de la suppression")));
+
+                          // 1. Zuerst aus der lokalen SQLite-Datenbank löschen
+                          await DatabaseHelper.instance.deleteTrajet(id.toString());
+
+                          // 2. Wenn online: Auch vom MongoDB-Server löschen
+                          try {
+                            await ApiService.supprimerTrajet(id.toString());
+                          } catch (e) {
+                            print('Suppression serveur ignorée ou hors-ligne: $e');
                           }
+
+                          if (!mounted) return;
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Trajet supprimé avec succès")));
+                          
+                          // 3. Ansicht neu laden -> Karte verschwindet sofort!
+                          _chargerDonnees();
                         }
                       },
                     ),
                   ],
                 ),
+                if (trajet['synced'] == 0) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.orange),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.cloud_off, size: 14, color: Colors.orange),
+                        SizedBox(width: 4),
+                        Text(
+                          "En attente de synchronisation (hors-ligne)",
+                          style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -265,17 +404,79 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
           ),
         ),
         
-        if (demandes.isNotEmpty) ...[
+        // Ausstehende Anfragen (zum Annehmen oder Ablehnen)
+        if (demandesEnAttente.isNotEmpty) ...[
           const SizedBox(height: 24),
           const Text(
-            "Demande en attente",
+            "Demandes en attente",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 12),
-          ...demandes.map((d) => _buildDemandeCard(d, trajet['id'])).toList(),
+          ...demandesEnAttente.map((d) => _buildDemandeCard(d, trajet['id'])).toList(),
         ],
+
+        // Angenommene Passagiere (bleiben sichtbar, bis der Fahrer sie löscht)
+        if (demandesAcceptees.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          const Text(
+            "Passagers confirmés",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E463D)),
+          ),
+          const SizedBox(height: 12),
+          ...demandesAcceptees.map((d) => _buildDemandeAccepteeCard(d, trajet['id'])).toList(),
+        ],
+
         const SizedBox(height: 32),
       ],
+    );
+  }
+
+  Widget _buildDemandeAccepteeCard(dynamic demande, String trajetId) {
+    final placesDemandees = demande['placesDemandees'] ?? 1;
+    final demandeId = demande['id'];
+    final idPassager = demande['idPassager'] ?? 'Passager';
+
+    return Card(
+      color: Colors.green.shade50,
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12.0),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: Colors.green, width: 1.2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.green, size: 22),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Passager ($idPassager)",
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "$placesDemandees place(s) réservée(s)",
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              tooltip: "Retirer ce passager",
+              onPressed: () => _supprimerDemandeAcceptee(trajetId, demandeId, placesDemandees),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../database/database_helper.dart';
+import '../models/trajet.dart';
 
 class ConducteurCreationTrajetScreen extends StatefulWidget {
   const ConducteurCreationTrajetScreen({super.key});
@@ -19,7 +21,7 @@ class _ConducteurCreationTrajetScreenState extends State<ConducteurCreationTraje
 
   bool _isLoading = false;
 
-  Future<void> _soumettre() async {
+    Future<void> _soumettre() async {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
 
@@ -34,41 +36,78 @@ class _ConducteurCreationTrajetScreenState extends State<ConducteurCreationTraje
       _heureDepart.minute,
     ).toUtc().toIso8601String();
 
-    // MOCK-Koordinaten für die Demo
+    // Koordinaten ermitteln
     final departCoords = ApiService.getCoordinates(_departLabel);
     final arriveeCoords = ApiService.getCoordinates(_destinationLabel);
 
-    final success = await ApiService.creerTrajet({
-      "depart": {
-        "label": _departLabel,
-        "latitude": departCoords['lat']!,
-        "longitude": departCoords['lon']!
-      },
-      "destination": {
-        "label": _destinationLabel,
-        "latitude": arriveeCoords['lat']!,
-        "longitude": arriveeCoords['lon']!
-      },
-      "heureDepart": dateTime,
-      "capacite": _capacite
-    });
+    // 1. Versuch: Online über die API an MongoDB senden
+    bool isOnlineSuccess = false;
+    try {
+      isOnlineSuccess = await ApiService.creerTrajet({
+        "depart": {
+          "label": _departLabel,
+          "latitude": departCoords['lat']!,
+          "longitude": departCoords['lon']!
+        },
+        "destination": {
+          "label": _destinationLabel,
+          "latitude": arriveeCoords['lat']!,
+          "longitude": arriveeCoords['lon']!
+        },
+        "heureDepart": dateTime,
+        "capacite": _capacite
+      });
+    } catch (e) {
+      // Wenn keine Verbindung besteht, fangen wir den Fehler ab und bleiben im Offline-Modus
+      isOnlineSuccess = false;
+    }
+
+    // 2. Nur wenn offline: Lokales Trajet-Objekt mit temporärer ID in SQLite speichern
+    if (!isOnlineSuccess) {
+      final nouveauTrajet = Trajet(
+        id: "temp_${DateTime.now().millisecondsSinceEpoch}", // Eindeutige temporäre Offline-ID
+        idConducteur: "cond-001",
+        departLatitude: departCoords['lat']!,
+        departLongitude: departCoords['lon']!,
+        destinationLatitude: arriveeCoords['lat']!,
+        destinationLongitude: arriveeCoords['lon']!,
+        heureDepart: dateTime,
+        capacite: _capacite,
+        placesDisponibles: _capacite,
+        statut: "ACTIF",
+        synced: 0, // 0 = offline ausstehend
+        lastModified: DateTime.now().toUtc().toIso8601String(),
+      );
+
+      await DatabaseHelper.instance.insertTrajet(nouveauTrajet);
+      print('Trajet enregistré localement (en attente de synchronisation) ${nouveauTrajet.id})');
+    }
 
     setState(() => _isLoading = false);
 
-    if (success) {
-      if (!mounted) return;
+    if (!mounted) return;
+
+    // 4. Dem Nutzer die passende Rückmeldung geben
+    if (isOnlineSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trajet créé avec succès !')),
+        const SnackBar(
+          content: Text('Trajet créé et synchronisé avec succès !'),
+          backgroundColor: Colors.green,
+        ),
       );
-      // Gehe zurück zur Übersicht und übergebe "true" als Signal, dass neu geladen werden soll
-      Navigator.of(context).pop(true);
     } else {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur lors de la création du trajet.')),
+        const SnackBar(
+          content: Text('Mode hors-ligne : trajet enregistré localement (en attente de synchronisation)'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
       );
     }
+
+    Navigator.of(context).pop(true);
   }
+
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(

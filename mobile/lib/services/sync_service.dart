@@ -95,12 +95,13 @@ class SyncService {
       try {
         final success = await ApiService.creerTrajet(trajet.toApiJson());
         if (success) {
-          // Fahrt in SQLite als synchronisiert markieren
-          await _dbHelper.updateTrajet(trajet.copyWith(synced: 1));
+          // Temporären Offline-Eintrag aus SQLite löschen, da pullRemoteTrajets()
+          // gleich danach den echten MongoDB-Eintrag vom Server abruft
+          await _dbHelper.deleteTrajet(trajet.id);
           count++;
         }
       } catch (e) {
-        // Bei Netzwerkproblemen bleibt synced = 0 für den nächsten Versuch
+        // Bei Netzwerkproblemen bleibt die Fahrt in SQLite für den nächsten Versuch
         print('Synchronisation fehlgeschlagen für Fahrt ${trajet.id}: $e');
       }
     }
@@ -121,8 +122,9 @@ class SyncService {
           token,
         );
         if (success) {
-          // Anfrage in SQLite als synchronisiert markieren
-          await _dbHelper.updateDemande(demande.copyWith(synced: 1));
+          // Temporäre Offline-Anfrage aus SQLite löschen, da pullRemoteDemandes()
+          // die offizielle Anfrage vom Server abruft
+          await _dbHelper.deleteDemande(demande.id);
           count++;
         }
       } catch (e) {
@@ -143,6 +145,18 @@ class SyncService {
     for (final item in remoteData) {
       try {
         final remoteTrajet = Trajet.fromJson(item as Map<String, dynamic>);
+
+        // Duplikate bereinigen: Falls ein temporärer Eintrag mit denselben Daten existiert
+        final localTrajets = await _dbHelper.getAllTrajets();
+        for (final local in localTrajets) {
+          if (local.id != remoteTrajet.id &&
+              local.heureDepart == remoteTrajet.heureDepart &&
+              (local.departLatitude - remoteTrajet.departLatitude).abs() < 0.001 &&
+              (local.destinationLatitude - remoteTrajet.destinationLatitude).abs() < 0.001) {
+            await _dbHelper.deleteTrajet(local.id);
+          }
+        }
+
         final localTrajet = await _dbHelper.getTrajetById(remoteTrajet.id);
 
         if (localTrajet == null) {
@@ -165,7 +179,6 @@ class SyncService {
               await _dbHelper.updateTrajet(remoteTrajet);
               conflits++;
             }
-            // Wenn lokale Daten neuer sind, behalten wir sie für den nächsten Push
           }
         }
       } catch (e) {
@@ -188,6 +201,17 @@ class SyncService {
         final List<dynamic> remoteDemandes = await ApiService.getDemandesPourTrajet(trajet.id);
         for (final item in remoteDemandes) {
           final remoteDemande = Demande.fromJson(item as Map<String, dynamic>);
+
+          // Duplikate bereinigen: Falls eine temporäre Anfrage für denselben Passagier existiert
+          final currentDemandes = await _dbHelper.getAllDemandes();
+          for (final local in currentDemandes) {
+            if (local.id != remoteDemande.id &&
+                local.idTrajet == remoteDemande.idTrajet &&
+                local.idPassager == remoteDemande.idPassager) {
+              await _dbHelper.deleteDemande(local.id);
+            }
+          }
+
           final localDemande = await _dbHelper.getDemandeById(remoteDemande.id);
 
           if (localDemande == null) {

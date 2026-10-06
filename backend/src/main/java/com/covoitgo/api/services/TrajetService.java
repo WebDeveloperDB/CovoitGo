@@ -133,9 +133,15 @@ public class TrajetService {
                 // Gesamtabweichung (Umweg) berechnen
                 double detourTotalKm = distanceDepart + distanceArrivee;
 
-                // Relevanz-Score ermitteln: Je kleiner der Umweg, desto höher der Score
-                // (maximal 100 Punkte)
+                // Relevanz-Score ermitteln: Berücksichtigt Distanz und Uhrzeit
                 double score = Math.max(0.0, 100.0 - (detourTotalKm * 5.0));
+
+                if (heureDepart != null && trajet.getHeureDepart() != null) {
+                    long diffMinutes = Math.abs(java.time.Duration.between(heureDepart, trajet.getHeureDepart()).toMinutes());
+                    // Pro 15 Minuten Zeitdifferenz 1 Punkt Abzug, max. Abzug 80 Punkte
+                    double penaliteHoraire = Math.min(80.0, diffMinutes / 15.0);
+                    score = Math.max(15.0, score - penaliteHoraire);
+                }
 
                 // Neues DTO-Ergebnisobjekt erstellen (genau das, was das Frontend erwartet)
                 RechercheTrajetResultat resultat = new RechercheTrajetResultat();
