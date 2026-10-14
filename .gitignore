@@ -21,10 +21,11 @@ EXPLICATION_SYNCHRONISATION.md
 EXPLICATION_CODE_JAVA.md
 GUIDE_MONGODB_COMPASS.md
 DOCUMENTATION_CONFLUENCE_SYNCHRONISATION.md
+DOCUMENTATION_CONFLUENCE_TESTS.md
 JIRA_ETAPE7_TESTS.md
 JIRA_ETAPE5.md
 # Environment files: ignore real secrets, but keep template examples
-\.env.*
+\.env.* 
 !\.env.example*
 !\.env.exemple*
 
