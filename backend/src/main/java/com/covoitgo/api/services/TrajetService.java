@@ -83,7 +83,8 @@ public class TrajetService {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Coordonnées GPS invalides.");
         }
 
-        // 2. Validierung der gewünschten Plätze (muss mindestens 1 Platz sein und max 8)
+        // 2. Validierung der gewünschten Plätze (muss mindestens 1 Platz sein und max
+        // 8)
         if (placesDemandees <= 0 || placesDemandees > 8) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Le nombre de places doit être compris entre 1 et 8.");
@@ -137,7 +138,8 @@ public class TrajetService {
                 double score = Math.max(0.0, 100.0 - (detourTotalKm * 5.0));
 
                 if (heureDepart != null && trajet.getHeureDepart() != null) {
-                    long diffMinutes = Math.abs(java.time.Duration.between(heureDepart, trajet.getHeureDepart()).toMinutes());
+                    long diffMinutes = Math
+                            .abs(java.time.Duration.between(heureDepart, trajet.getHeureDepart()).toMinutes());
                     // Pro 15 Minuten Zeitdifferenz 1 Punkt Abzug, max. Abzug 80 Punkte
                     double penaliteHoraire = Math.min(80.0, diffMinutes / 15.0);
                     score = Math.max(15.0, score - penaliteHoraire);
@@ -271,6 +273,24 @@ public class TrajetService {
         // 2. Prüfen, ob noch genügend freie Plätze vorhanden sind
         if (trajet.getPlacesDisponibles() < requete.getPlacesDemandees()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Pas assez de places disponibles dans ce trajet.");
+        }
+
+        // Prüfen, ob dieser Passagier bereits eine aktive Buchungsanfrage für diese
+        // Fahrt hat
+        List<DemandeTrajet> existantes = demandeTrajetRepository.findByIdTrajetAndIdPassager(trajetId,
+                requete.getIdPassager());
+        boolean dejaReserve = existantes.stream().anyMatch(d ->
+
+        "PENDING".equalsIgnoreCase(d.getStatut()) ||
+
+                "EN_ATTENTE".equalsIgnoreCase(d.getStatut()) ||
+
+                "ACCEPTE".equalsIgnoreCase(d.getStatut()) ||
+
+                "ACCEPTED".equalsIgnoreCase(d.getStatut()));
+        if (dejaReserve) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Vous avez déjà une demande en cours ou acceptée pour ce trajet.");
         }
 
         // 3. Neue Anfrage (Demande) erstellen

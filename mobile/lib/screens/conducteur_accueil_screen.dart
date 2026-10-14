@@ -482,55 +482,107 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
 
   Widget _buildDemandeCard(dynamic demande, String trajetId) {
     final placesDemandees = demande['placesDemandees'] ?? 1;
-    final demandeId = demande['id'];
+    final demandeId = demande['id']?.toString() ?? '';
+    final passagerId = demande['idPassager']?.toString() ?? 'passager_001';
+    final dateDemande = _formatDate(demande['lastModified'] ?? demande['creeLe']);
 
     return Card(
       color: Colors.white,
-      elevation: 3,
-      margin: const EdgeInsets.only(bottom: 12.0),
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 14.0),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.orange.shade300, width: 1.5),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            // Kopfbereich des divs: Passagier-Info und Status-Badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(Icons.person_add, color: Color(0xFF1E463D)),
-                SizedBox(width: 8),
-                Text("Demande de Passager", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: const Color(0xFF1E463D).withOpacity(0.1),
+                      child: const Icon(Icons.person, color: Color(0xFF1E463D), size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      "Passager : $passagerId",
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.orange.shade400),
+                  ),
+                  child: Text(
+                    "EN ATTENTE",
+                    style: TextStyle(color: Colors.orange.shade800, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text("$placesDemandees place(s) demandée(s)", style: TextStyle(color: Colors.grey.shade700, fontSize: 14)),
+            const SizedBox(height: 10),
+            // Details der Anfrage
+            Row(
+              children: [
+                const Icon(Icons.event_seat, size: 16, color: Colors.black54),
+                const SizedBox(width: 6),
+                Text(
+                  "Places souhaitées : $placesDemandees place(s)",
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 14, color: Colors.black45),
+                const SizedBox(width: 6),
+                Text(
+                  "Demandé le : $dateDemande",
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
-            // Zwei Buttons nebeneinander (Accepter / Refuser)
+            // Eigene Buttons für genau DIESE Anfrage
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton(
+                  child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E463D),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text("Accepter"),
                     onPressed: () => _gererDemande(trajetId, demandeId, "ACCEPTE"),
-                    child: const Text("Accepter"),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton(
+                  child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red.shade700,
-                      side: BorderSide(color: Colors.red.shade700),
+                      side: BorderSide(color: Colors.red.shade400),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text("Refuser"),
                     onPressed: () => _gererDemande(trajetId, demandeId, "REFUSE"),
-                    child: const Text("Refuser"),
                   ),
                 ),
               ],
@@ -540,6 +592,7 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
       ),
     );
   }
+
 
   String _formatDate(String? isoString) {
     if (isoString == null) return "Date inconnue";

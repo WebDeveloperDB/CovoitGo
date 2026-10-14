@@ -7,16 +7,20 @@ import java.util.List;
 
 /**
  * REPOSITORY für die Mitfahranfragen (Demandes).
- * Genauso wie beim TrajetRepository nimmt uns Spring Boot hier 
+ * Genauso wie beim TrajetRepository nimmt uns Spring Boot hier
  * die gesamte Arbeit für grundlegende Datenbank-Befehle (CRUD) ab.
  */
 @Repository
 public interface DemandeTrajetRepository extends MongoRepository<DemandeTrajet, String> {
-    
+
     // Find all requests for a specific trip
     List<DemandeTrajet> findByIdTrajet(String idTrajet);
-    
+
     // Find requests for a specific trip by their status
     List<DemandeTrajet> findByIdTrajetAndStatut(String idTrajet, String statut);
+
+    // Find all requests for a specific trip and passenger (to detect duplicate
+    // bookings)
+    List<DemandeTrajet> findByIdTrajetAndIdPassager(String idTrajet, String idPassager);
 
 }

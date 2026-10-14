@@ -30,21 +30,26 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
                      widget.trajet['id']?.toString() ?? 
                      '66f1a8c9e4b0123456789abc';
 
-    // 1. Versuch: Online über die API senden
-    bool isOnlineSuccess = false;
-    try {
-      isOnlineSuccess = await ApiService.envoyerDemande(
-        trajetId,
-        {
-          'idPassager': 'passager_001',
-          'placesDemandees': widget.placesDemandees,
-        },
-        'dummy_token',
+    // 0. Prüfen, ob lokal bereits eine Reservierung für diese Fahrt existiert
+    final existantes = await DatabaseHelper.instance.getAllDemandes();
+    final dejaReserve = existantes.any((d) => 
+      d.idTrajet == trajetId && 
+      (d.statut == 'PENDING' || d.statut == 'ACCEPTE' || d.statut == 'EN_ATTENTE' || d.statut == 'ACCEPTED')
+    );
+
+    if (dejaReserve) {
+      setState(() => isSubmitting = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Vous avez déjà une demande en cours ou validée pour ce trajet !"),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
       );
-    } catch (e) {
-      // Offline-Fall: Fehler abfangen
-      isOnlineSuccess = false;
+      return;
     }
+
 
     // Ermittlung der Städtenamen für Speicherung und Anzeige
     String depNom = widget.trajet['depart']?['label'] ?? '';

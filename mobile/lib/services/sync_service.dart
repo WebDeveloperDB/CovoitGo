@@ -203,14 +203,16 @@ class SyncService {
           final remoteDemande = Demande.fromJson(item as Map<String, dynamic>);
 
           // Duplikate bereinigen: Falls eine temporäre Anfrage für denselben Passagier existiert
+                    // Duplikate nur bereinigen, wenn es ein temporärer SQLite-Entwurf derselben ID ist
           final currentDemandes = await _dbHelper.getAllDemandes();
           for (final local in currentDemandes) {
-            if (local.id != remoteDemande.id &&
+            if (local.id.startsWith('temp_') &&
                 local.idTrajet == remoteDemande.idTrajet &&
                 local.idPassager == remoteDemande.idPassager) {
               await _dbHelper.deleteDemande(local.id);
             }
           }
+
 
           final localDemande = await _dbHelper.getDemandeById(remoteDemande.id);
 
