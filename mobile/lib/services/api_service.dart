@@ -111,8 +111,8 @@ class ApiService {
   // US3: Gérer une demande & Envoi d'une demande
   // ==========================================
 
-  // Passager : Envoyer une demande de covoiturage
-  static Future<bool> envoyerDemande(String trajetId, Map<String, dynamic> demandeData, String token) async {
+  // Passager : Envoyer une demande de covoiturage (retourne le code HTTP: 201/200 succès, 409 conflit/doublon, -1 hors-ligne)
+  static Future<int> envoyerDemande(String trajetId, Map<String, dynamic> demandeData, String token) async {
     final url = Uri.parse('$baseUrl/trajets/$trajetId/demandes');
 
     try {
@@ -125,16 +125,11 @@ class ApiService {
         body: json.encode(demandeData),
       );
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        print('Demande envoyée avec succès !');
-        return true;
-      } else {
-        print('Erreur lors de l\'envoi de la demande (Code ${response.statusCode})');
-        return false;
-      }
+      print('Envoi demande réponse code: ${response.statusCode}');
+      return response.statusCode;
     } catch (e) {
-      print('Erreur de connexion : $e');
-      return false;
+      print('Erreur de connexion (mode hors-ligne) : $e');
+      return -1;
     }
   }
 

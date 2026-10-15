@@ -30,7 +30,7 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
                      widget.trajet['id']?.toString() ?? 
                      '66f1a8c9e4b0123456789abc';
 
-    // 0. Prüfen, ob lokal bereits eine Reservierung für diese Fahrt existiert
+    // 0. Vérification locale SQLite : le passager a-t-il déjà réservé ce trajet ?
     final existantes = await DatabaseHelper.instance.getAllDemandes();
     final dejaReserve = existantes.any((d) => 
       d.idTrajet == trajetId && 
@@ -50,6 +50,37 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
       return;
     }
 
+    // 1. Appel en ligne à l'API Spring Boot
+    int apiStatusCode = 0;
+    try {
+      apiStatusCode = await ApiService.envoyerDemande(
+        trajetId,
+        {
+          'idPassager': 'passager_001',
+          'placesDemandees': widget.placesDemandees,
+        },
+        'dummy_token',
+      );
+    } catch (e) {
+      apiStatusCode = -1; // Erreur réseau -> passage en mode hors-ligne
+    }
+
+    // Si le serveur MongoDB renvoie 409 CONFLICT (Doublon ou places épuisées)
+    if (apiStatusCode == 409) {
+      setState(() => isSubmitting = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Conflit : vous avez déjà demandé ce trajet ou il n'y a plus de places disponibles."),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    // Détermination de l'état : En ligne réussi ou Offline
+    final bool isOnlineSuccess = (apiStatusCode == 201 || apiStatusCode == 200);
 
     // Ermittlung der Städtenamen für Speicherung und Anzeige
     String depNom = widget.trajet['depart']?['label'] ?? '';
@@ -74,19 +105,19 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
 
     final routeInfo = "$depNom → $destNom";
 
-    // 2. Lokales Demande-Objekt für SQLite erstellen
+    // 2. Création de l'objet Demande pour SQLite
     final nouvelleDemande = Demande(
       id: "temp_${DateTime.now().millisecondsSinceEpoch}",
       idTrajet: trajetId,
       idPassager: 'passager_001',
       placesDemandees: widget.placesDemandees,
       statut: 'PENDING',
-      motif: routeInfo, // Speichert den Namen der Fahrt für die Liste "Mes réservations"
-      synced: isOnlineSuccess ? 1 : 0, // 1 = online übertragen, 0 = offline ausstehend
+      motif: routeInfo,
+      synced: isOnlineSuccess ? 1 : 0, // 1 = synchronisé avec MongoDB, 0 = en attente hors-ligne
       lastModified: DateTime.now().toUtc().toIso8601String(),
     );
 
-    // 3. In lokaler SQLite-Datenbank speichern (damit der Passagier seine Reservierungen sieht)
+    // 3. Sauvegarde dans SQLite
     await DatabaseHelper.instance.insertDemande(nouvelleDemande);
     print('SQLite: Réservation enregistrée localement (synced: ${nouvelleDemande.synced})');
 
@@ -96,7 +127,7 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
 
     if (!mounted) return;
 
-    // 4. Passende Rückmeldung an den Nutzer (Klarstellung: wartet auf Fahrer-Bestätigung)
+    // 4. Notification adaptée à l'utilisateur
     if (isOnlineSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

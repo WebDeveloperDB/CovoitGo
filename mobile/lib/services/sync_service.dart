@@ -116,14 +116,13 @@ class SyncService {
 
     for (final demande in pendingDemandes) {
       try {
-        final success = await ApiService.envoyerDemande(
+        final statusCode = await ApiService.envoyerDemande(
           demande.idTrajet,
           demande.toApiJson(),
           token,
         );
-        if (success) {
-          // Temporäre Offline-Anfrage aus SQLite löschen, da pullRemoteDemandes()
-          // die offizielle Anfrage vom Server abruft
+        // 200/201 = succès ; 409 = déjà existant sur le serveur (on supprime l'ébauche locale)
+        if (statusCode == 201 || statusCode == 200 || statusCode == 409) {
           await _dbHelper.deleteDemande(demande.id);
           count++;
         }

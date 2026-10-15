@@ -140,9 +140,16 @@ public class TrajetService {
                 if (heureDepart != null && trajet.getHeureDepart() != null) {
                     long diffMinutes = Math
                             .abs(java.time.Duration.between(heureDepart, trajet.getHeureDepart()).toMinutes());
-                    // Pro 15 Minuten Zeitdifferenz 1 Punkt Abzug, max. Abzug 80 Punkte
-                    double penaliteHoraire = Math.min(80.0, diffMinutes / 15.0);
-                    score = Math.max(15.0, score - penaliteHoraire);
+
+                    // Si l'écart dépasse 4 heures (240 minutes), le trajet n'est plus compatible
+                    if (diffMinutes > 240) {
+                        continue;
+                    }
+
+                    // Déduction proportionnelle : 10 points par heure d'écart (1 point toutes les 6 minutes)
+                    // Ex: 1h d'écart -> -10 pts (Score 90%), 2h d'écart -> -20 pts (Score 80%)
+                    double penaliteHoraire = (diffMinutes / 60.0) * 10.0;
+                    score = Math.max(0.0, score - penaliteHoraire);
                 }
 
                 // Neues DTO-Ergebnisobjekt erstellen (genau das, was das Frontend erwartet)
