@@ -20,6 +20,46 @@ class PassagerReservationScreen extends StatefulWidget {
 
 class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
   bool isSubmitting = false;
+  bool _dejaReserve = false;
+  bool _isCheckingStatus = true;
+  String _statutReservation = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _verifierReservationExistante();
+  }
+
+  void _verifierReservationExistante() async {
+    final trajetId = widget.trajet['idTrajet']?.toString() ?? 
+                     widget.trajet['id']?.toString() ?? 
+                     '66f1a8c9e4b0123456789abc';
+
+    try {
+      final existantes = await DatabaseHelper.instance.getAllDemandes();
+      final Demande? demandeTrouvee = existantes.cast<Demande?>().firstWhere(
+        (d) => d != null && d.idTrajet == trajetId && 
+               (d.statut == 'PENDING' || d.statut == 'ACCEPTE' || d.statut == 'EN_ATTENTE' || d.statut == 'ACCEPTED'),
+        orElse: () => null,
+      );
+
+      if (mounted) {
+        setState(() {
+          _dejaReserve = demandeTrouvee != null;
+          if (demandeTrouvee != null) {
+            _statutReservation = demandeTrouvee.statut;
+          }
+          _isCheckingStatus = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCheckingStatus = false;
+        });
+      }
+    }
+  }
 
   void _confirmerReservation() async {
     setState(() {
@@ -254,19 +294,86 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
               ),
             ),
             const Spacer(),
+            if (_dejaReserve) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (_statutReservation == 'ACCEPTE' || _statutReservation == 'ACCEPTED')
+                      ? Colors.green.shade50
+                      : Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: (_statutReservation == 'ACCEPTE' || _statutReservation == 'ACCEPTED')
+                        ? Colors.green.shade400
+                        : Colors.amber.shade400,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      (_statutReservation == 'ACCEPTE' || _statutReservation == 'ACCEPTED')
+                          ? Icons.check_circle
+                          : Icons.info_outline,
+                      color: (_statutReservation == 'ACCEPTE' || _statutReservation == 'ACCEPTED')
+                          ? Colors.green.shade700
+                          : Colors.amber.shade900,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        (_statutReservation == 'ACCEPTE' || _statutReservation == 'ACCEPTED')
+                            ? "Vous avez déjà une place confirmée sur ce trajet."
+                            : "Vous avez déjà envoyé une demande de réservation pour ce trajet. Vous ne pouvez pas demander deux fois le même trajet.",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: (_statutReservation == 'ACCEPTE' || _statutReservation == 'ACCEPTED')
+                              ? Colors.green.shade900
+                              : Colors.amber.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: btnColor,
-                  foregroundColor: Colors.black87,
+                  backgroundColor: _dejaReserve ? Colors.grey.shade300 : btnColor,
+                  foregroundColor: _dejaReserve ? Colors.grey.shade600 : Colors.black87,
+                  elevation: _dejaReserve ? 0 : 2,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: isSubmitting ? null : _confirmerReservation,
+                onPressed: (isSubmitting || _dejaReserve || _isCheckingStatus) ? null : _confirmerReservation,
                 child: isSubmitting 
                   ? const CircularProgressIndicator(color: Colors.black)
-                  : const Text('Confirmer la réservation', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  : _isCheckingStatus
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : _dejaReserve
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  (_statutReservation == 'ACCEPTE' || _statutReservation == 'ACCEPTED')
+                                      ? Icons.check_circle_outline
+                                      : Icons.hourglass_top,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  (_statutReservation == 'ACCEPTE' || _statutReservation == 'ACCEPTED')
+                                      ? 'Réservation déjà acceptée'
+                                      : 'Demande déjà envoyée (en attente)',
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            )
+                          : const Text('Confirmer la réservation', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
