@@ -27,6 +27,12 @@ public class CoordonneesDto {
     public CoordonneesDto() {
     }
 
+    public CoordonneesDto(String label, double latitude, double longitude) {
+        this.label = label;
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
+
     // Getters und Setters: In Java sind Variablen oft "private" (geschützt). 
     // Mit getLabel() und setLabel() kann man diese Variablen von außen sicher lesen und verändern.
     public String getLabel() {
