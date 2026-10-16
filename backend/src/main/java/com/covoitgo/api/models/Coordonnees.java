@@ -22,6 +22,12 @@ public class Coordonnees {
     public Coordonnees() {
     }
 
+    public Coordonnees(String label, double latitude, double longitude) {
+        this.label = label;
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
+
     // Getters und Setters, damit MongoDB die Werte speichern und lesen kann
     public String getLabel() {
         return label;
