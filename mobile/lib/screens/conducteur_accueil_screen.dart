@@ -189,9 +189,21 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Bonjour, $userName',
-                            style: const TextStyle(color: Colors.white70, fontSize: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Bonjour, $userName',
+                                style: const TextStyle(color: Colors.white70, fontSize: 16),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
+                                tooltip: 'Se déconnecter',
+                                onPressed: () {
+                                  Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                                },
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
                           const Text(
