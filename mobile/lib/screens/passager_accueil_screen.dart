@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/session_service.dart';
 import 'passager_reservation_screen.dart';
 import '../database/database_helper.dart';
 import '../models/demande.dart';
@@ -12,8 +13,8 @@ class PassagerAccueilScreen extends StatefulWidget {
 }
 
 class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
-  // Dummy-Variable für den Namen des eingeloggten Benutzers.
-  final String userName = "Passager";
+  // Dynamischer Name des eingeloggten Benutzers aus dem SessionService
+  String get userName => SessionService.instance.prenom ?? "Passager";
   
   // Zeigt an, ob wir bereits eine Suche durchgeführt haben.
   bool hasSearched = false; 
@@ -280,7 +281,10 @@ class _PassagerAccueilScreenState extends State<PassagerAccueilScreen> {
                         IconButton(
                           icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
                           tooltip: 'Se déconnecter',
-                          onPressed: () {
+                          onPressed: () async {
+                            // Sitzung und Token löschen
+                            await SessionService.instance.deconnexion();
+                            if (!context.mounted) return;
                             Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
                           },
                         ),

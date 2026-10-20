@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'passager_accueil_screen.dart';
 import 'conducteur_accueil_screen.dart';
 import 'inscription_screen.dart';
+import '../services/api_service.dart';
+import '../services/session_service.dart';
 
-/// ANMELDE-BILDSCHIRM (LOGIN SCREEN) - Ticket FR403-677
+/// ANMELDE-BILDSCHIRM (LOGIN SCREEN) - Ticket FR403-677 & FR403-887
 /// 
 /// Ermöglicht dem Benutzer, sich als Mitfahrer (Passager) oder Fahrer (Conducteur) anzumelden.
-/// Enthält Formularvalidierung und automatische Weiterleitung (Routing).
+/// Authentifiziert über das Spring Boot Backend via JWT-Token und speichert die Session persistent.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -35,7 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Funktion zum Anmelden & Weiterleiten
+  // Funktion zum Anmelden über die Backend-API & Weiterleiten
   void _seConnecter() async {
     // 1. Prüfen, ob alle Formularfelder gültig sind
     if (!_formKey.currentState!.validate()) {
@@ -46,8 +48,11 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    // Kurze simulierte Netzwerkverzögerung (im nächsten Ticket: echter JWT-API-Aufruf zum Backend)
-    await Future.delayed(const Duration(milliseconds: 600));
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    // Echter API-Aufruf zu POST /api/auth/login
+    final result = await ApiService.login(email, password);
 
     if (!mounted) return;
 
@@ -55,24 +60,38 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Willkommen! Angemeldet als ${_selectedRole == "PASSAGER" ? "Passager" : "Conducteur"}.'),
-        backgroundColor: const Color(0xFF1E463D),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    if (result['success'] == true) {
+      final role = SessionService.instance.role ?? _selectedRole;
+      final prenom = SessionService.instance.prenom ?? '';
 
-    // 2. Automatisches Routing je nach gewählter Rolle
-    if (_selectedRole == 'PASSAGER') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const PassagerAccueilScreen()),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Connexion réussie ! Bienvenue $prenom.'),
+          backgroundColor: const Color(0xFF1E463D),
+          duration: const Duration(seconds: 2),
+        ),
       );
+
+      // 2. Automatisches Routing je nach erhaltener Benutzerrolle
+      if (role == 'CONDUCTEUR') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ConducteurAccueilScreen()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const PassagerAccueilScreen()),
+        );
+      }
     } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const ConducteurAccueilScreen()),
+      // Fehlermeldung bei ungültigen Anmeldedaten oder Verbindungsproblemen
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Email ou mot de passe incorrect.'),
+          backgroundColor: Colors.red.shade700,
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }

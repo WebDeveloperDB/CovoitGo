@@ -1,22 +1,31 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile/main.dart';
+import 'package:mobile/services/session_service.dart';
 
 void main() {
-  testWidgets('App starts and displays role selection', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const CovoitGoApp());
+  setUp(() async {
+    // Initialisiert SharedPreferences mit leeren Werten für Tests
+    SharedPreferences.setMockInitialValues({});
+    await SessionService.instance.init();
+  });
 
-    // Verify that the title and role buttons are displayed.
-    expect(find.text('Qui êtes-vous ?'), findsOneWidget);
-    expect(find.text('Je suis Passager'), findsOneWidget);
-    expect(find.text('Je suis Conducteur'), findsOneWidget);
+  testWidgets('App starts and displays Login screen with CovoitGo branding', (WidgetTester tester) async {
+    // App starten
+    await tester.pumpWidget(const CovoitGoApp());
+    await tester.pumpAndSettle();
+
+    // Überprüfen, ob das CovoitGo Logo und Branding vorhanden sind
+    expect(find.text('CovoitGo'), findsOneWidget);
+    expect(find.text('Connexion'), findsOneWidget);
+    expect(find.text('Je me connecte en tant que :'), findsOneWidget);
+    expect(find.text('Passager'), findsOneWidget);
+    expect(find.text('Conducteur'), findsOneWidget);
+
+    // Formularfelder und Buttons
+    expect(find.byType(TextFormField), findsNWidgets(2)); // Email & Mot de passe
+    expect(find.widgetWithText(ElevatedButton, 'Se connecter'), findsOneWidget);
+    expect(find.text("S'inscrire"), findsOneWidget);
   });
 }

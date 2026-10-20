@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/session_service.dart';
 import '../database/database_helper.dart';
 import '../models/trajet.dart';
 
@@ -66,7 +67,7 @@ class _ConducteurCreationTrajetScreenState extends State<ConducteurCreationTraje
     if (!isOnlineSuccess) {
       final nouveauTrajet = Trajet(
         id: "temp_${DateTime.now().millisecondsSinceEpoch}", // Eindeutige temporäre Offline-ID
-        idConducteur: "cond-001",
+        idConducteur: SessionService.instance.userId ?? "cond-001",
         departLatitude: departCoords['lat']!,
         departLongitude: departCoords['lon']!,
         destinationLatitude: arriveeCoords['lat']!,

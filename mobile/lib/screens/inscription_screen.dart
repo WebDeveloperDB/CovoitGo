@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'passager_accueil_screen.dart';
 import 'conducteur_accueil_screen.dart';
+import '../services/api_service.dart';
+import '../services/session_service.dart';
 
-/// REGISTRIERUNGS-BILDSCHIRM (REGISTER SCREEN) - Ticket FR403-677
+/// REGISTRIERUNGS-BILDSCHIRM (REGISTER SCREEN) - Ticket FR403-677 & FR403-887
 /// 
 /// Ermöglicht neuen Nutzern, ein Konto mit Name, E-Mail,
-/// Passwort und ihrer Hauptrolle (Passager oder Conducteur) zu erstellen.
+/// Passwort und ihrer Hauptrolle (Passager oder Conducteur) über das Spring Boot Backend zu erstellen.
 class InscriptionScreen extends StatefulWidget {
   const InscriptionScreen({super.key});
 
@@ -41,7 +43,7 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
     super.dispose();
   }
 
-  // Funktion zum Erstellen des Kontos & Weiterleiten
+  // Funktion zum Erstellen des Kontos über die Backend-API & Weiterleiten
   void _creerCompte() async {
     // 1. Validierung aller Pflichtfelder
     if (!_formKey.currentState!.validate()) {
@@ -52,8 +54,14 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
       _isLoading = true;
     });
 
-    // Simuliert eine Registrierungsverzögerung (im nächsten Ticket: echter API-Call zu Spring Boot)
-    await Future.delayed(const Duration(milliseconds: 700));
+    // Echter API-Aufruf zu POST /api/auth/register
+    final result = await ApiService.register(
+      nom: _nomController.text.trim(),
+      prenom: _prenomController.text.trim(),
+      email: _emailController.text.trim(),
+      motDePasse: _passwordController.text,
+      role: _selectedRole,
+    );
 
     if (!mounted) return;
 
@@ -61,26 +69,39 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
       _isLoading = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Compte créé avec succès ! Bienvenue ${_prenomController.text.trim()}.'),
-        backgroundColor: const Color(0xFF1E463D),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    if (result['success'] == true) {
+      final role = SessionService.instance.role ?? _selectedRole;
 
-    // 2. Automatische Weiterleitung zur passenden Startseite
-    if (_selectedRole == 'PASSAGER') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const PassagerAccueilScreen()),
-        (route) => false,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Compte créé avec succès ! Bienvenue ${_prenomController.text.trim()}.'),
+          backgroundColor: const Color(0xFF1E463D),
+          duration: const Duration(seconds: 2),
+        ),
       );
+
+      // 2. Automatische Weiterleitung zur passenden Startseite je nach Rolle
+      if (role == 'PASSAGER') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const PassagerAccueilScreen()),
+          (route) => false,
+        );
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const ConducteurAccueilScreen()),
+          (route) => false,
+        );
+      }
     } else {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const ConducteurAccueilScreen()),
-        (route) => false,
+      // Fehlermeldung bei bereits vergebener E-Mail oder Validierungsfehlern
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Erreur lors de la création du compte.'),
+          backgroundColor: Colors.red.shade700,
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }

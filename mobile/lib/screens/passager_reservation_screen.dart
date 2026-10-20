@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/session_service.dart';
 import '../database/database_helper.dart';
 import '../models/demande.dart';
 
@@ -91,15 +92,18 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
     }
 
     // 1. Appel en ligne à l'API Spring Boot
+    final passagerId = SessionService.instance.userId ?? 'passager_001';
+    final token = SessionService.instance.token ?? '';
+
     int apiStatusCode = 0;
     try {
       apiStatusCode = await ApiService.envoyerDemande(
         trajetId,
         {
-          'idPassager': 'passager_001',
+          'idPassager': passagerId,
           'placesDemandees': widget.placesDemandees,
         },
-        'dummy_token',
+        token,
       );
     } catch (e) {
       apiStatusCode = -1; // Erreur réseau -> passage en mode hors-ligne
@@ -149,7 +153,7 @@ class _PassagerReservationScreenState extends State<PassagerReservationScreen> {
     final nouvelleDemande = Demande(
       id: "temp_${DateTime.now().millisecondsSinceEpoch}",
       idTrajet: trajetId,
-      idPassager: 'passager_001',
+      idPassager: passagerId,
       placesDemandees: widget.placesDemandees,
       statut: 'PENDING',
       motif: routeInfo,

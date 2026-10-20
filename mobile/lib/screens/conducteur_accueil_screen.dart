@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/session_service.dart';
 import 'conducteur_creation_trajet_screen.dart';
 import '../database/database_helper.dart';
 import '../services/sync_service.dart';
@@ -13,8 +14,8 @@ class ConducteurAccueilScreen extends StatefulWidget {
 }
 
 class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
-  // Dummy-Variable für den Namen des eingeloggten Fahrers.
-  final String userName = "Conducteur";
+  // Dynamischer Name des eingeloggten Fahrers aus dem SessionService
+  String get userName => SessionService.instance.prenom ?? "Conducteur";
 
   List<dynamic> _trajets = [];
   Map<String, List<dynamic>> _demandesParTrajet = {};
@@ -199,7 +200,10 @@ class _ConducteurAccueilScreenState extends State<ConducteurAccueilScreen> {
                               IconButton(
                                 icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
                                 tooltip: 'Se déconnecter',
-                                onPressed: () {
+                                onPressed: () async {
+                                  // Sitzung und Token löschen
+                                  await SessionService.instance.deconnexion();
+                                  if (!context.mounted) return;
                                   Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
                                 },
                               ),
