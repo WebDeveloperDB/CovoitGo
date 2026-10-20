@@ -24,13 +24,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.covoitgo.api.models.Utilisateur;
+import com.covoitgo.api.repositories.UtilisateurRepository;
+import com.covoitgo.api.services.JwtService;
+
 /**
  * INTEGRATIONSTESTS OHNE MOCK FÜR US2 (Proposer un trajet)
  * Entspricht Ticket FR403-855 und Confluence Seite 8.
  *
  * Testet den vollständigen Pfad:
- * Client HTTP POST -> TrajetController -> TrajetService -> TrajetRepository ->
- * Echte MongoDB
+ * Client HTTP POST -> TrajetController -> TrajetService -> TrajetRepository -> Echte MongoDB
+ * Verwendet ein gültiges JWT Bearer Token für die geschützte Route POST /api/trajets.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -44,11 +48,29 @@ public class TrajetCreationIntegrationTest {
     @Autowired
     private TrajetRepository trajetRepository;
 
+    @Autowired
+    private UtilisateurRepository utilisateurRepository;
+
+    @Autowired
+    private JwtService jwtService;
+
+    private String validToken;
+
     @BeforeEach
     void preparerJeuDeDonnees() {
-        // Bereinigt die echte MongoDB-Collection vor jedem Test für reproduzierbare
-        // Ergebnisse
         trajetRepository.deleteAll();
+        utilisateurRepository.deleteAll();
+
+        // Test-Benutzer anlegen und echtes JWT-Token für autorisierte Tests erzeugen
+        Utilisateur user = new Utilisateur(
+                "Testeur",
+                "Conducteur",
+                "conducteur.test@covoitgo.fr",
+                "$2a$10$dummyHashPourTestDeSecurite12345678901234567890",
+                "CONDUCTEUR"
+        );
+        user = utilisateurRepository.save(user);
+        validToken = jwtService.generateToken(user);
     }
 
     // CAS NOMINAL (CODE 201 CREATED)
@@ -63,8 +85,9 @@ public class TrajetCreationIntegrationTest {
         requete.setHeureDepart(Instant.parse("2026-10-20T08:00:00Z"));
         requete.setCapacite(3);
 
-        // Act (Phase 1) : Echter HTTP POST Request mit JSON-Body
+        // Act (Phase 1) : Echter HTTP POST Request mit JWT Bearer Header & JSON-Body
         mockMvc.perform(post("/api/trajets")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requete)))
                 .andExpect(status().isCreated());
@@ -95,6 +118,7 @@ public class TrajetCreationIntegrationTest {
         requete.setCapacite(3);
 
         mockMvc.perform(post("/api/trajets")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requete)))
                 .andExpect(status().isBadRequest());
@@ -113,6 +137,7 @@ public class TrajetCreationIntegrationTest {
         requete.setCapacite(3);
 
         mockMvc.perform(post("/api/trajets")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requete)))
                 .andExpect(status().isBadRequest());
@@ -131,6 +156,7 @@ public class TrajetCreationIntegrationTest {
         requeteZero.setCapacite(0); // Ungültig
 
         mockMvc.perform(post("/api/trajets")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requeteZero)))
                 .andExpect(status().isUnprocessableEntity());
@@ -143,6 +169,7 @@ public class TrajetCreationIntegrationTest {
         requeteDix.setCapacite(10); // Ungültig
 
         mockMvc.perform(post("/api/trajets")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requeteDix)))
                 .andExpect(status().isUnprocessableEntity());
@@ -163,6 +190,7 @@ public class TrajetCreationIntegrationTest {
         requete.setCapacite(4);
 
         mockMvc.perform(post("/api/trajets")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requete)))
                 .andExpect(status().isCreated());

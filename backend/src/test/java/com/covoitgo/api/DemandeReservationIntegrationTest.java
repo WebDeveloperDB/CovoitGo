@@ -25,13 +25,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.covoitgo.api.models.Utilisateur;
+import com.covoitgo.api.repositories.UtilisateurRepository;
+import com.covoitgo.api.services.JwtService;
+
 /**
  * INTEGRATIONSTESTS OHNE MOCK FÜR US3 (Gérer une demande de covoiturage)
  * Entspricht Ticket FR403-856 und Confluence Seite 8.
  *
  * Testet den vollständigen Pfad:
- * Passagier bucht -> Fahrer akzeptiert/lehnt ab -> Atomare BDD-Plätzereduktion
- * in MongoDB
+ * Passagier bucht -> Fahrer akzeptiert/lehnt ab -> Atomare BDD-Plätzereduktion in MongoDB
+ * Verwendet ein gültiges JWT Bearer Token für die geschützten Routen /api/trajets/{id}/demandes/**.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -48,6 +52,14 @@ public class DemandeReservationIntegrationTest {
     @Autowired
     private DemandeTrajetRepository demandeTrajetRepository;
 
+    @Autowired
+    private UtilisateurRepository utilisateurRepository;
+
+    @Autowired
+    private JwtService jwtService;
+
+    private String validToken;
+
     private static final String TRAJET_TEST_ID = "6ac4f5ffec2032127f4b5891";
     private static final String DEMANDE_INITIALE_ID = "6ac4f5ffec2032127f4b5892";
 
@@ -56,6 +68,18 @@ public class DemandeReservationIntegrationTest {
         // Echte MongoDB-Collections bereinigen
         trajetRepository.deleteAll();
         demandeTrajetRepository.deleteAll();
+        utilisateurRepository.deleteAll();
+
+        // Test-Benutzer anlegen und echtes JWT-Token für autorisierte Tests erzeugen
+        Utilisateur user = new Utilisateur(
+                "Passager",
+                "Test",
+                "passager.test@covoitgo.fr",
+                "$2a$10$dummyHashPourTestDeSecurite12345678901234567890",
+                "PASSAGER"
+        );
+        user = utilisateurRepository.save(user);
+        validToken = jwtService.generateToken(user);
 
         // 1. Trajet de test (2 places initiales disponibles)
         Trajet trajet = new Trajet();
@@ -93,6 +117,7 @@ public class DemandeReservationIntegrationTest {
         requete.setPlacesDemandees(1);
 
         mockMvc.perform(post("/api/trajets/" + TRAJET_TEST_ID + "/demandes")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requete)))
                 .andExpect(status().isCreated());
@@ -113,6 +138,7 @@ public class DemandeReservationIntegrationTest {
         requete.setPlacesDemandees(1);
 
         mockMvc.perform(post("/api/trajets/faux_id_inconnu/demandes")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requete)))
                 .andExpect(status().isNotFound());
@@ -126,6 +152,7 @@ public class DemandeReservationIntegrationTest {
         requete.setPlacesDemandees(5); // Seulement 2 places libres !
 
         mockMvc.perform(post("/api/trajets/" + TRAJET_TEST_ID + "/demandes")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requete)))
                 .andExpect(status().isConflict());
@@ -140,6 +167,7 @@ public class DemandeReservationIntegrationTest {
         requete.setPlacesDemandees(1);
 
         mockMvc.perform(post("/api/trajets/" + TRAJET_TEST_ID + "/demandes")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requete)))
                 .andExpect(status().isConflict());
@@ -160,6 +188,7 @@ public class DemandeReservationIntegrationTest {
         decision.setRaison("Bienvenue à bord !");
 
         mockMvc.perform(patch("/api/trajets/" + TRAJET_TEST_ID + "/demandes/" + DEMANDE_INITIALE_ID)
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(decision)))
                 .andExpect(status().isOk());
@@ -183,6 +212,7 @@ public class DemandeReservationIntegrationTest {
         decision.setRaison("Désolé, horaires incompatibles.");
 
         mockMvc.perform(patch("/api/trajets/" + TRAJET_TEST_ID + "/demandes/" + DEMANDE_INITIALE_ID)
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(decision)))
                 .andExpect(status().isOk());
@@ -213,6 +243,7 @@ public class DemandeReservationIntegrationTest {
         decision.setStatut("ACCEPTE");
 
         mockMvc.perform(patch("/api/trajets/" + TRAJET_TEST_ID + "/demandes/demande_complete_002")
+                .header("Authorization", "Bearer " + validToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(decision)))
                 .andExpect(status().isOk());
