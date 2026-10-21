@@ -5,7 +5,7 @@ import 'inscription_screen.dart';
 import '../services/api_service.dart';
 import '../services/session_service.dart';
 
-/// ANMELDE-BILDSCHIRM (LOGIN SCREEN) - Ticket FR403-677 & FR403-887
+/// ANMELDE-BILDSCHIRM (LOGIN SCREEN)
 /// 
 /// Ermöglicht dem Benutzer, sich als Mitfahrer (Passager) oder Fahrer (Conducteur) anzumelden.
 /// Authentifiziert über das Spring Boot Backend via JWT-Token und speichert die Session persistent.

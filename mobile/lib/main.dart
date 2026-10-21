@@ -11,7 +11,7 @@ void main() async {
   // Stellt sicher, dass die Flutter-Bindings vor der Initialisierung von SharedPreferences bereit sind
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Gespeicherte JWT-Sitzung laden (Ticket FR403-887)
+  // Gespeicherte JWT-Sitzung laden 
   await SessionService.instance.init();
 
   runApp(const CovoitGoApp());

@@ -4,8 +4,6 @@ import 'conducteur_accueil_screen.dart';
 import '../services/api_service.dart';
 import '../services/session_service.dart';
 
-/// REGISTRIERUNGS-BILDSCHIRM (REGISTER SCREEN) - Ticket FR403-677 & FR403-887
-/// 
 /// Ermöglicht neuen Nutzern, ein Konto mit Name, E-Mail,
 /// Passwort und ihrer Hauptrolle (Passager oder Conducteur) über das Spring Boot Backend zu erstellen.
 class InscriptionScreen extends StatefulWidget {

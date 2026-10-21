@@ -1,6 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// ZENTRALER SITZUNGS- UND AUTHENTIFIZIERUNGS-MANAGER (SESSION SERVICE) - Ticket FR403-887
+/// ZENTRALER SITZUNGS- UND AUTHENTIFIZIERUNGS-MANAGER (SESSION SERVICE)
 /// 
 /// Verwaltet das JWT-Token, die Benutzer-ID, Name, E-Mail und Rolle in der mobilen App.
 /// Speichert alle Sitzungsdaten persistent mit SharedPreferences, damit der Benutzer
