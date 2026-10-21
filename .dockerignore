@@ -1,0 +1,12 @@
+# Exclusions Docker pour la production
+.git
+.gitlab-ci.yml
+.env
+.env.*
+!.env.example
+mobile/
+target/
+*.md
+docs/
+.idea/
+.vscode/

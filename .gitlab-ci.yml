@@ -1,0 +1,154 @@
+# ==============================================================================
+# PIPELINE CI/CD COVOITGO - FIL ROUGE 4.0.3
+# Conforme aux directives de l'Étape 8 (Achraf Boujjou & Daniel)
+# ==============================================================================
+
+# Definition der 4 Hauptphasen (Stages)
+stages:
+  - BUILD
+  - TEST
+  - PACKAGE
+  - DEPLOY
+
+# Globale Variablen für die Pipeline
+variables:
+  # Name und Tag des Docker-Images (verwendet den kurzen Git-Commit-Hash für lückenlose Nachverfolgbarkeit)
+  IMAGE_NAME: "covoitgo-api"
+  IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+  # Konfiguration für Docker-in-Docker (falls vom Runner unterstützt)
+  DOCKER_HOST: "tcp://docker:2375"
+  DOCKER_TLS_CERTDIR: ""
+
+# ==============================================================================
+# 1. STAGE : BUILD (Kompilierung & Erstellung des ausführbaren Binaries)
+# ==============================================================================
+
+# Kompiliert das Spring Boot Backend mit Maven und erzeugt die ausführbare JAR-Datei
+build_backend:
+  stage: BUILD
+  image: eclipse-temurin:21-jdk
+  script:
+    - echo "=== Démarrage de la compilation Backend Java Spring Boot ==="
+    - java -version
+    - cd backend
+    - chmod +x mvnw
+    # Echte Maven-Kompilierung und Packaging ohne Tests (Tests laufen in Stage TEST)
+    - ./mvnw --batch-mode clean package -DskipTests
+    - ls -la target/*.jar
+  artifacts:
+    name: "covoitgo-backend-$CI_COMMIT_SHORT_SHA"
+    paths:
+      # Das fertige Executable wird als Artefakt für die nachfolgenden Stages aufbewahrt
+      - backend/target/*.jar
+    expire_in: 1 day
+
+# ==============================================================================
+# 2. STAGE : TEST (Automatisierte Qualitätskontrolle)
+# ==============================================================================
+
+# Prüft, ob alle Testklassen fehlerfrei kompilieren
+test_backend_compile:
+  stage: TEST
+  image: eclipse-temurin:21-jdk
+  script:
+    - echo "=== Vérification de la compilation des tests Backend ==="
+    - cd backend
+    - chmod +x mvnw
+    - ./mvnw --batch-mode test-compile
+
+# Führt die Backend-Tests mit einer temporären MongoDB-Testdatenbank aus
+test_backend_integration:
+  stage: TEST
+  image: eclipse-temurin:21-jdk
+  services:
+    # Ephemere MongoDB-Instanz für die Integrationstests
+    - name: mongo:7.0
+      alias: mongo
+  variables:
+    SPRING_DATA_MONGODB_URI: "mongodb://mongo:27017/covoitgo_test"
+    SPRING_PROFILES_ACTIVE: "test"
+  script:
+    - echo "=== Exécution des tests automatisés Backend ==="
+    - cd backend
+    - chmod +x mvnw
+    - ./mvnw --batch-mode test
+  # allow_failure: Falls der GitLab-Runner der Schule keine Docker-Services unterstützt,
+  # bricht nicht die gesamte Pipeline ab
+  allow_failure: true
+
+# Führt die Flutter-Tests für die mobile Anwendung aus
+test_mobile:
+  stage: TEST
+  image: ghcr.io/cirruslabs/flutter:stable
+  script:
+    - echo "=== Exécution des tests Flutter Mobile ==="
+    - cd mobile
+    - flutter pub get
+    - flutter test
+  # allow_failure: Falls das Herunterladen des Flutter-Images zu lange dauert
+  allow_failure: true
+
+# ==============================================================================
+# 3. STAGE : PACKAGE (Containerisierung ohne Quellcode) - Vorbereitung für Ticket 2
+# ==============================================================================
+
+# Baut das Docker-Produktions-Image mit Multi-Stage Build (nur app.jar, keine Quellen!)
+package_production_image:
+  stage: PACKAGE
+  image: docker:27-cli
+  services:
+    - name: docker:27-dind
+  script:
+    - echo "=== Construction de l'image Docker de production (sans sources) ==="
+    # Nutzt das Root-Dockerfile mit Multi-Stage Build
+    - docker build --target runtime --tag "$IMAGE_NAME:$IMAGE_TAG" --tag "$IMAGE_NAME:latest" .
+    # Exportiert das Image als tar-Archiv zur Weitergabe an das Deployment
+    - docker save "$IMAGE_NAME:$IMAGE_TAG" --output image.tar
+    - ls -lh image.tar
+  artifacts:
+    paths:
+      - image.tar
+      - compose.prod.yaml
+    expire_in: 1 day
+  rules:
+    # Wird nur auf develop, main oder manuell ausgeführt
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+      allow_failure: true
+
+# ==============================================================================
+# 4. STAGE : DEPLOY (Automatisches Ausrollen auf den Schul-PC) - Vorbereitung für Ticket 3
+# ==============================================================================
+
+# Verbindet sich per SSH mit dem Ziel-PC, überträgt das Image und startet Docker Compose
+deploy_production:
+  stage: DEPLOY
+  image: alpine:3.20
+  before_script:
+    - echo "=== Préparation de la connexion SSH vers le serveur distant ==="
+    # SSH-Client installieren
+    - apk add --no-cache openssh-client curl
+    # SSH-Verzeichnis anlegen
+    - install -m 700 -d ~/.ssh
+    # SSH-Schlüssel aus den geheimen GitLab-Variablen laden
+    - if [ -n "$SSH_PRIVATE_KEY" ]; then cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519; fi
+    - if [ -n "$SSH_KNOWN_HOSTS" ]; then cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts; else echo "StrictHostKeyChecking no" >> ~/.ssh/config; fi
+  script:
+    - echo "=== Déploiement sur le serveur distant ($DEPLOY_HOST) ==="
+    # 1. Image und Compose-Datei auf den Zielserver übertragen (OHNE Quellcode!)
+    - scp image.tar compose.prod.yaml "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+    # 2. Auf dem Zielserver: Image laden und Container neu starten
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && docker load --input image.tar && APP_VERSION='$IMAGE_TAG' docker compose -f compose.prod.yaml up -d --remove-orphans"
+    # 3. Automatische Überprüfung der Gesundheit der Anwendung (Healthcheck)
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "curl --fail --retry 10 --retry-delay 3 'http://localhost:8080/health'"
+  environment:
+    name: production
+    url: "http://$DEPLOY_HOST:8080"
+  rules:
+    # Automatisches Deployment ausschließlich auf main bei vorhandenen SSH-Zugangsdaten
+    - if: '$CI_COMMIT_BRANCH == "main" && $DEPLOY_HOST != null'
+    # Optional manuell anstoßbar auf develop
+    - if: '$CI_COMMIT_BRANCH == "develop" && $DEPLOY_HOST != null'
+      when: manual
+      allow_failure: true

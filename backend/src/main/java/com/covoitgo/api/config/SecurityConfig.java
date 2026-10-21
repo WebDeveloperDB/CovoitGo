@@ -50,6 +50,7 @@ public class SecurityConfig {
                 // 4. Autorisierungsregeln für URLs
                 .authorizeHttpRequests(auth -> auth
                         // Öffentliche Endpunkte (jeder darf zugreifen):
+                        .requestMatchers("/health", "/api/health").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/trajets/recherche").permitAll()
                         .requestMatchers("/actuator/**").permitAll()

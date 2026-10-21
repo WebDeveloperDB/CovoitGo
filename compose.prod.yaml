@@ -1,0 +1,31 @@
+services:
+  api:
+    image: covoitgo-api:${APP_VERSION:-latest}
+    container_name: covoitgo-api-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  mongodb:
+    image: mongo:7.0
+    container_name: covoitgo-mongodb-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mongodb_data:
