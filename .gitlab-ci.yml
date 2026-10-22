@@ -15,6 +15,11 @@ variables:
   DOCKER_HOST: "tcp://docker:2375"
   DOCKER_TLS_CERTDIR: ""
 
+# Standard-Konfiguration: Nutzt den Docker-Runner für Salle 108
+default:
+  tags:
+    - Salle-108
+
 
 # 1. STAGE : BUILD (Kompilierung & Erstellung des ausführbaren Binaries)
 
@@ -105,14 +110,13 @@ package_production_image:
       - compose.prod.yaml
     expire_in: 1 day
   rules:
-    # Wird auf main, develop sowie auf FR403-982 Feature-Branches ausgeführt
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^FR403-982/'
+    # Wird auf main, develop sowie auf FR403-982 und FR403-983 Feature-Branches ausgeführt
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^FR403-982/ || $CI_COMMIT_BRANCH =~ /^FR403-983/'
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
       allow_failure: true
 
-# 4. STAGE : DEPLOY (Automatisches Ausrollen auf den Schul-PC) - Vorbereitung für Ticket 3
-
+# 4. STAGE : DEPLOY (Automatisches Ausrollen auf den Schul-PC) 
 
 # Verbindet sich per SSH mit dem Ziel-PC, überträgt das Image und startet Docker Compose
 deploy_production:
@@ -120,28 +124,35 @@ deploy_production:
   image: alpine:3.20
   before_script:
     - echo "=== Préparation de la connexion SSH vers le serveur distant ==="
-    # SSH-Client installieren
+    # SSH-Client und curl installieren
     - apk add --no-cache openssh-client curl
     # SSH-Verzeichnis anlegen
     - install -m 700 -d ~/.ssh
-    # SSH-Schlüssel aus den geheimen GitLab-Variablen laden
-    - if [ -n "$SSH_PRIVATE_KEY" ]; then cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519; fi
-    - if [ -n "$SSH_KNOWN_HOSTS" ]; then cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts; else echo "StrictHostKeyChecking no" >> ~/.ssh/config; fi
+    # SSH-Schlüssel laden (unterstützt Datei-Variable oder Text-Variable)
+    - if [ -f "$SSH_PRIVATE_KEY" ]; then cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519; elif [ -n "$SSH_PRIVATE_KEY" ]; then echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519; fi
+    - chmod 600 ~/.ssh/id_ed25519 2>/dev/null || true
+    # Server-Fingerabdruck laden
+    - if [ -f "$SSH_KNOWN_HOSTS" ]; then cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts; elif [ -n "$SSH_KNOWN_HOSTS" ]; then echo "$SSH_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts; else echo "StrictHostKeyChecking no" >> ~/.ssh/config; fi
+    - chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
   script:
     - echo "=== Déploiement sur le serveur distant ($DEPLOY_HOST) ==="
     # 1. Image und Compose-Datei auf den Zielserver übertragen (OHNE Quellcode!)
-    - scp image.tar compose.prod.yaml "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+    - scp -o BatchMode=yes image.tar compose.prod.yaml "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
     # 2. Auf dem Zielserver: Image laden und Container neu starten
-    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && docker load --input image.tar && APP_VERSION='$IMAGE_TAG' docker compose -f compose.prod.yaml up -d --remove-orphans"
+    - ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && docker load --input image.tar && APP_VERSION='$IMAGE_TAG' docker compose -f compose.prod.yaml up -d --remove-orphans"
     # 3. Automatische Überprüfung der Gesundheit der Anwendung (Healthcheck)
-    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "curl --fail --retry 10 --retry-delay 3 'http://localhost:8080/health'"
+    - ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "curl --fail --retry 10 --retry-delay 3 'http://localhost:8080/health'"
   environment:
     name: production
     url: "http://$DEPLOY_HOST:8080"
   rules:
-    # Automatisches Deployment ausschließlich auf main bei vorhandenen SSH-Zugangsdaten
+    # Automatisches Deployment auf main bei vorhandenen Zugangsdaten
     - if: '$CI_COMMIT_BRANCH == "main" && $DEPLOY_HOST != null'
     # Optional manuell anstoßbar auf develop
     - if: '$CI_COMMIT_BRANCH == "develop" && $DEPLOY_HOST != null'
+      when: manual
+      allow_failure: true
+    # Ausführbar auf Feature-Branch FR403-983
+    - if: '$CI_COMMIT_BRANCH =~ /^FR403-983/ && $DEPLOY_HOST != null'
       when: manual
       allow_failure: true
