@@ -144,7 +144,9 @@ deploy_production:
     # 3. Auf dem Zielserver: Container mit neuer Version starten
     - ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && APP_VERSION='$IMAGE_TAG' docker compose -f compose.prod.yaml up -d --remove-orphans"
     # 4. Automatische Überprüfung der Gesundheit der Anwendung (Healthcheck)
-    - ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "curl --fail --retry 10 --retry-delay 3 'http://localhost:8080/health'"
+    - echo "=== Attente du démarrage de Spring Boot et vérification du Healthcheck ==="
+    - ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "sleep 10 && curl -s -S --fail --retry 10 --retry-delay 3 --retry-connrefused --retry-all-errors 'http://localhost:8080/health'"
+    - echo "Déploiement et Healthcheck validés avec succès !"
   environment:
     name: production
     url: "http://$DEPLOY_HOST:8080"
