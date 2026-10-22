@@ -17,8 +17,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env.production
-    ports:
-      - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongodb_data:/data/db
     healthcheck:

@@ -53,7 +53,7 @@ test_backend_compile:
     - chmod +x mvnw
     - ./mvnw --batch-mode test-compile
 
-# Führt die Backend-Tests mit kurzer Verbindungs-Timeout aus
+# Führt die Backend-Integrationstests optional / manuell aus
 test_backend_integration:
   stage: TEST
   image: eclipse-temurin:21-jdk
@@ -68,8 +68,10 @@ test_backend_integration:
     - echo "=== Exécution des tests automatisés Backend ==="
     - cd backend
     - chmod +x mvnw
-    # Kurzer Verbindungs-Timeout (1500ms), damit der Job nicht 15 Minuten wartet, falls kein Mongo-Service im Runner läuft
-    - ./mvnw --batch-mode test -Dspring.data.mongodb.uri="mongodb://mongo:27017/covoitgo_test?connectTimeoutMS=1500&serverSelectionTimeoutMS=1500"
+    - ./mvnw --batch-mode test
+  rules:
+    - when: manual
+      allow_failure: true
   allow_failure: true
 
 # Führt die Flutter-Tests für die mobile Anwendung aus (nur bei Änderungen an mobile/)
