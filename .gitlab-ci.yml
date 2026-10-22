@@ -53,7 +53,7 @@ test_backend_compile:
     - chmod +x mvnw
     - ./mvnw --batch-mode test-compile
 
-# Führt die Backend-Tests mit einer temporären MongoDB-Testdatenbank aus
+# Führt die Backend-Tests mit kurzer Verbindungs-Timeout aus
 test_backend_integration:
   stage: TEST
   image: eclipse-temurin:21-jdk
@@ -68,12 +68,11 @@ test_backend_integration:
     - echo "=== Exécution des tests automatisés Backend ==="
     - cd backend
     - chmod +x mvnw
-    - ./mvnw --batch-mode test
-  # allow_failure: Falls der GitLab-Runner der Schule keine Docker-Services unterstützt,
-  # bricht nicht die gesamte Pipeline ab
+    # Kurzer Verbindungs-Timeout (1500ms), damit der Job nicht 15 Minuten wartet, falls kein Mongo-Service im Runner läuft
+    - ./mvnw --batch-mode test -Dspring.data.mongodb.uri="mongodb://mongo:27017/covoitgo_test?connectTimeoutMS=1500&serverSelectionTimeoutMS=1500"
   allow_failure: true
 
-# Führt die Flutter-Tests für die mobile Anwendung aus
+# Führt die Flutter-Tests für die mobile Anwendung aus (nur bei Änderungen an mobile/)
 test_mobile:
   stage: TEST
   image: ghcr.io/cirruslabs/flutter:stable
@@ -82,11 +81,15 @@ test_mobile:
     - cd mobile
     - flutter pub get
     - flutter test
-  # allow_failure: Falls das Herunterladen des Flutter-Images zu lange dauert
+  rules:
+    - changes:
+        - mobile/**/*
+      when: on_success
+    - when: manual
+      allow_failure: true
   allow_failure: true
 
-# 3. STAGE : PACKAGE (Containerisierung ohne Quellcode) - Vorbereitung für Ticket 2
-
+# 3. STAGE : PACKAGE (Containerisierung ohne Quellcode)
 
 # Baut das Docker-Produktions-Image mit Multi-Stage Build (nur app.jar, keine Quellen!)
 package_production_image:
@@ -99,27 +102,23 @@ package_production_image:
     - docker version
     # Nutzt das Root-Dockerfile mit Multi-Stage Build
     - docker build --target runtime --tag "$IMAGE_NAME:$IMAGE_TAG" --tag "$IMAGE_NAME:latest" .
-    # Exportiert das Image als tar-Archiv zur Weitergabe an das Deployment
-    - docker save "$IMAGE_NAME:$IMAGE_TAG" --output image.tar
-    - ls -lh image.tar
+    # Verifiziert die erfolgreiche Erstellung im Runner
+    - docker images "$IMAGE_NAME"
   artifacts:
     paths:
-      - image.tar
+      # Nur compose.prod.yaml als Artefakt hochladen (verhindert den 413 Entity Too Large Fehler bei 147MB tar)
       - compose.prod.yaml
     expire_in: 1 day
   rules:
     # Wird auf main, develop sowie auf FR403-982 und FR403-983 Feature-Branches ausgeführt
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^FR403-982/ || $CI_COMMIT_BRANCH =~ /^FR403-983/'
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
-      allow_failure: true
 
-# 4. STAGE : DEPLOY (Automatisches Ausrollen auf den Schul-PC) 
+# 4. STAGE : DEPLOY (Automatisches Ausrollen auf den Schul-PC)
 
 # Verbindet sich per SSH mit dem Ziel-PC, überträgt das Image und startet Docker Compose
 deploy_production:
   stage: DEPLOY
-  image: alpine:3.20
+  image: docker:27-cli
   before_script:
     - echo "=== Préparation de la connexion SSH vers le serveur distant ==="
     # SSH-Client und curl installieren
@@ -134,11 +133,15 @@ deploy_production:
     - chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
   script:
     - echo "=== Déploiement sur le serveur distant ($DEPLOY_HOST) ==="
-    # 1. Image und Compose-Datei auf den Zielserver übertragen (OHNE Quellcode!)
-    - scp -o BatchMode=yes image.tar compose.prod.yaml "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
-    # 2. Auf dem Zielserver: Image laden und Container neu starten
-    - ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && docker load --input image.tar && APP_VERSION='$IMAGE_TAG' docker compose -f compose.prod.yaml up -d --remove-orphans"
-    # 3. Automatische Überprüfung der Gesundheit der Anwendung (Healthcheck)
+    - if [ -S /var/run/docker.sock ]; then unset DOCKER_HOST; fi
+    # 1. Compose-Datei auf den Zielserver übertragen (OHNE Quellcode!)
+    - scp -o BatchMode=yes compose.prod.yaml "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+    # 2. Docker-Image direkt per SSH-Stream auf den Zielserver übertragen (schnell, sicher, umgeht GitLab-Dateilimits!)
+    - echo "Transfert direct de l'image Docker de production vers $DEPLOY_HOST..."
+    - docker save "$IMAGE_NAME:$IMAGE_TAG" | ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "docker load"
+    # 3. Auf dem Zielserver: Container mit neuer Version starten
+    - ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && APP_VERSION='$IMAGE_TAG' docker compose -f compose.prod.yaml up -d --remove-orphans"
+    # 4. Automatische Überprüfung der Gesundheit der Anwendung (Healthcheck)
     - ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "curl --fail --retry 10 --retry-delay 3 'http://localhost:8080/health'"
   environment:
     name: production
