@@ -11,9 +11,6 @@ variables:
   # Name und Tag des Docker-Images (verwendet den kurzen Git-Commit-Hash für lückenlose Nachverfolgbarkeit)
   IMAGE_NAME: "covoitgo-api"
   IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
-  # Konfiguration für Docker-in-Docker (falls vom Runner unterstützt)
-  DOCKER_HOST: "tcp://docker:2375"
-  DOCKER_TLS_CERTDIR: ""
 
 # Standard-Konfiguration: Nutzt den Docker-Runner für Salle 108
 default:
@@ -95,10 +92,11 @@ test_mobile:
 package_production_image:
   stage: PACKAGE
   image: docker:27-cli
-  services:
-    - name: docker:27-dind
   script:
     - echo "=== Construction de l'image Docker de production (sans sources) ==="
+    # Nutzt den Docker-Daemon des Runners (über gemounteten /var/run/docker.sock)
+    - if [ -S /var/run/docker.sock ]; then unset DOCKER_HOST; fi
+    - docker version
     # Nutzt das Root-Dockerfile mit Multi-Stage Build
     - docker build --target runtime --tag "$IMAGE_NAME:$IMAGE_TAG" --tag "$IMAGE_NAME:latest" .
     # Exportiert das Image als tar-Archiv zur Weitergabe an das Deployment
@@ -152,7 +150,5 @@ deploy_production:
     - if: '$CI_COMMIT_BRANCH == "develop" && $DEPLOY_HOST != null'
       when: manual
       allow_failure: true
-    # Ausführbar auf Feature-Branch FR403-983
+    # Automatische Ausführung auf Feature-Branch FR403-983 sobald das Paket fertig ist
     - if: '$CI_COMMIT_BRANCH =~ /^FR403-983/ && $DEPLOY_HOST != null'
-      when: manual
-      allow_failure: true
