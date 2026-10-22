@@ -1,4 +1,4 @@
-# Exclusions Docker pour la production
+# Exclusions Docker pour la production (recommandations du guide CI/CD)
 .git
 .gitlab-ci.yml
 .env
@@ -6,7 +6,12 @@
 !.env.example
 mobile/
 target/
+backend/target/
 *.md
 docs/
 .idea/
 .vscode/
+tests/
+coverage/
+node_modules/
+
